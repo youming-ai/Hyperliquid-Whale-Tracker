@@ -6,6 +6,8 @@
 
 这是一个用于监控 Hyperliquid DEX（去中心化交易所）上特定钱包地址交易活动的 Telegram 机器人。它能实时追踪"大佬"（有经验的交易者）的交易行为，并通过 Telegram 及时通知用户。
 
+<img src="docs/images/bot_screenshot.png" width="40%" alt="Hyperliquid Whale Tracker Bot Screenshot">
+
 ## 主要功能
 
 - 🔍 实时监控指定钱包地址

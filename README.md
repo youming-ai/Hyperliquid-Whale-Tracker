@@ -4,6 +4,8 @@ English | [中文](README_CN.md)
 
 A Telegram bot that monitors and tracks whale trading activities on Hyperliquid DEX.
 
+<img src="docs/images/bot_screenshot.png" width="40%" alt="Hyperliquid Whale Tracker Bot Screenshot">
+
 ## Features
 
 - 🔍 Real-time monitoring of specified wallet addresses on Hyperliquid
