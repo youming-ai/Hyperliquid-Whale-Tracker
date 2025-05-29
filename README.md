@@ -1,6 +1,6 @@
 # Hyperliquid Whale Tracker Bot 🐋
 
-English | [中文](README_CN.md)
+[English](README.md) | [中文](README_CN.md) | [日本語](README_JP.md)
 
 A Telegram bot that monitors and tracks whale trading activities on Hyperliquid DEX.
 

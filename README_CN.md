@@ -1,6 +1,6 @@
 # Hyperliquid 大户交易追踪机器人 🐋
 
-[English](README.md) | 中文文档
+[English](README.md) | [中文](README_CN.md) | [日本語](README_JP.md)
 
 ## 项目简介
 
