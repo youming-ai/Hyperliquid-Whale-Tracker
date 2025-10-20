@@ -1,0 +1,36 @@
+{
+  "name": "@hyperdash/database",
+  "version": "1.0.0",
+  "description": "Database schemas and migrations for HyperDash platform",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist",
+    "migrate": "npm run migrate:postgres && npm run migrate:clickhouse",
+    "migrate:postgres": "cd postgres && npm run migrate",
+    "migrate:clickhouse": "cd clickhouse && npm run migrate",
+    "seed": "cd postgres && npm run seed",
+    "type-check": "tsc --noEmit",
+    "lint": "eslint src --ext .ts,.tsx",
+    "lint:fix": "eslint src --ext .ts,.tsx --fix"
+  },
+  "dependencies": {
+    "@types/pg": "^8.10.9",
+    "@clickhouse/client": "^1.0.1",
+    "drizzle-orm": "^0.29.3",
+    "postgres": "^3.4.3",
+    "pg": "^8.11.3",
+    "redis": "^4.6.10",
+    "ioredis": "^5.3.2",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.5",
+    "@types/ioredis": "^5.0.0",
+    "drizzle-kit": "^0.20.7",
+    "typescript": "^5.3.3",
+    "tsx": "^4.6.2"
+  }
+}

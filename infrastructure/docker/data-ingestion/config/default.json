@@ -1,0 +1,61 @@
+{
+  "clickhouse": {
+    "host": "clickhouse",
+    "port": 8123,
+    "database": "hyperdash_analytics",
+    "user": "default",
+    "password": "",
+    "connectionTimeout": 10000,
+    "requestTimeout": 30000
+  },
+  "kafka": {
+    "brokers": ["redpanda:9092"],
+    "clientId": "hyperdash-data-ingestion",
+    "groupId": "hyperdash-data-consumers",
+    "topics": {
+      "market-data": "market-data-topic",
+      "trader-events": "trader-events-topic",
+      "copy-trades": "copy-trades-topic"
+    }
+  },
+  "redis": {
+    "host": "redis",
+    "port": 6379,
+    "password": "",
+    "db": 0,
+    "keyPrefix": "hyperdash:data:",
+    "connectTimeout": 10000,
+    "commandTimeout": 5000
+  },
+  "hyperliquid": {
+    "baseUrl": "https://api.hyperliquid.xyz/info",
+    "wsUrl": "wss://api.hyperliquid.xyz/ws",
+    "apiKey": "your_hyperliquid_api_key",
+    "secretKey": "your_hyperliquid_secret_key",
+    "testnet": true,
+    "rateLimit": {
+      "requestsPerSecond": 100,
+      "burst": 200
+    },
+    "timeout": {
+      "connect": 10000,
+      "request": 30000
+    }
+  },
+  "ingestion": {
+    "batchSize": 1000,
+    "flushInterval": 5000,
+    "retryAttempts": 3,
+    "retryDelay": 1000,
+    "enableCompression": true
+  },
+  "logging": {
+    "level": "info",
+    "format": "json",
+    "enableConsole": true,
+    "enableFile": true,
+    "logDir": "./logs",
+    "maxSize": "20m",
+    "maxFiles": "7d"
+  }
+}

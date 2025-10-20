@@ -1,0 +1,119 @@
+name: Branch Protection
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  check-branch-protection:
+    name: Check Branch Protection Rules
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check PR target branch
+        run: |
+          TARGET_BRANCH="${{ github.base_ref }}"
+          SOURCE_BRANCH="${{ github.head_ref }}"
+
+          echo "PR from $SOURCE_BRANCH to $TARGET_BRANCH"
+
+          # Enforce that PRs to main must come from develop
+          if [[ "$TARGET_BRANCH" == "main" && "$SOURCE_BRANCH" != "develop" ]]; then
+            echo "❌ PRs to main must come from develop branch"
+            exit 1
+          fi
+
+          echo "✅ Branch protection check passed"
+
+  required-checks:
+    name: Required Status Checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for required checks
+        uses: lewagon/wait-on-check-action@v1.3.4
+        with:
+          ref: ${{ github.sha }}
+          check-regexp: '^(lint|test|build|security).*'
+          wait-interval: 10
+          allowed-conclusions: success
+
+  pr-validation:
+    name: PR Validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check PR description
+        run: |
+          PR_BODY="${{ github.event.pull_request.body }}"
+
+          if [[ -z "$PR_BODY" || "$PR_BODY" == "" ]]; then
+            echo "❌ PR must have a description"
+            exit 1
+          fi
+
+          # Check for required sections in PR description
+          if [[ ! "$PR_BODY" =~ ##.*Changes ]]; then
+            echo "❌ PR must include '## Changes' section"
+            exit 1
+          fi
+
+          if [[ ! "$PR_BODY" =~ ##.*Testing ]]; then
+            echo "❌ PR must include '## Testing' section"
+            exit 1
+          fi
+
+          echo "✅ PR description validation passed"
+
+      - name: Check commit messages
+        run: |
+          # Get all commits in the PR
+          COMMITS=$(git log --format='%s' origin/main..HEAD)
+
+          while IFS= read -r commit; do
+            if [[ ! "$commit" =~ ^(feat|fix|docs|style|refactor|test|chore)(\(.+\))?: .+ ]]; then
+              echo "❌ Invalid commit message format: $commit"
+              echo "Expected format: type(scope): description"
+              exit 1
+            fi
+          done <<< "$COMMITS"
+
+          echo "✅ Commit message validation passed"
+
+  size-check:
+    name: PR Size Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check PR size
+        run: |
+          # Count lines changed
+          LINES_CHANGED=$(git diff --stat origin/main..HEAD | tail -1 | awk '{print $4}')
+
+          # Remove + and convert to number
+          LINES_CHANGED=${LINES_CHANGED//[^0-9]/}
+
+          echo "Lines changed: $LINES_CHANGED"
+
+          # Warn for large PRs
+          if [[ $LINES_CHANGED -gt 1000 ]]; then
+            echo "⚠️ Large PR detected ($LINES_CHANGED lines). Consider breaking it into smaller PRs."
+            echo "::warning::Large PR detected. Consider breaking it into smaller PRs."
+          fi
+
+          # Block very large PRs
+          if [[ $LINES_CHANGED -gt 3000 ]]; then
+            echo "❌ Very large PR detected ($LINES_CHANGED lines). Please break it into smaller PRs."
+            exit 1
+          fi
+
+          echo "✅ PR size check passed"

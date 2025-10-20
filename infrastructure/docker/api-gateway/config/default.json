@@ -1,0 +1,60 @@
+{
+  "server": {
+    "port": 3000,
+    "host": "0.0.0.0",
+    "cors": {
+      "origin": ["http://localhost:3001"],
+      "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+      "credentials": true
+    }
+  },
+  "database": {
+    "connectionString": "postgres://hyperdash:hyperdash_password@postgres:5432/hyperdash",
+    "maxConnections": 20,
+    "connectionTimeout": 30000,
+    "queryTimeout": 30000
+  },
+  "redis": {
+    "host": "redis",
+    "port": 6379,
+    "password": "",
+    "db": 0,
+    "keyPrefix": "hyperdash:",
+    "connectTimeout": 10000,
+    "commandTimeout": 5000,
+    "retryDelayOnFailover": 100,
+    "maxRetriesPerRequest": 3
+  },
+  "kafka": {
+    "brokers": ["redpanda:9092"],
+    "clientId": "hyperdash-api-gateway",
+    "connectionTimeout": 10000,
+    "requestTimeout": 30000,
+    "retry": {
+      "retries": 3,
+      "initialRetryTime": 100,
+      "maxRetryTime": 30000
+    }
+  },
+  "jwt": {
+    "secret": "your_jwt_secret_key",
+    "expiresIn": "24h",
+    "issuer": "hyperdash",
+    "audience": "hyperdash-users",
+    "refreshExpiresIn": "7d"
+  },
+  "logging": {
+    "level": "info",
+    "format": "json",
+    "enableConsole": true,
+    "enableFile": true,
+    "logDir": "./logs",
+    "maxSize": "20m",
+    "maxFiles": "14d"
+  },
+  "metrics": {
+    "enabled": true,
+    "port": 9464,
+    "path": "/metrics"
+  }
+}

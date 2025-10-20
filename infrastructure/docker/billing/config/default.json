@@ -1,0 +1,100 @@
+{
+  "database": {
+    "connectionString": "postgres://hyperdash:hyperdash_password@postgres:5432/hyperdash",
+    "maxConnections": 10,
+    "connectionTimeout": 30000,
+    "queryTimeout": 30000
+  },
+  "stripe": {
+    "secretKey": "sk_test_your_stripe_secret_key",
+    "publishableKey": "pk_test_your_stripe_publishable_key",
+    "webhookSecret": "whsec_your_webhook_secret",
+    "apiVersion": "2023-10-16",
+    "successUrl": "http://localhost:3000/billing/webhook/success",
+    "cancelUrl": "http://localhost:3000/billing/webhook/cancel",
+    "webhookUrl": "http://localhost:3000/billing/webhook"
+  },
+  "redis": {
+    "host": "redis",
+    "port": 6379,
+    "password": "",
+    "db": 0,
+    "keyPrefix": "hyperdash:billing:",
+    "connectTimeout": 10000,
+    "commandTimeout": 5000
+  },
+  "subscriptions": {
+    "plans": {
+      "freemium": {
+        "name": "Freemium",
+        "price": 0,
+        "interval": "month",
+        "features": [
+          "market-data-basic",
+          "trader-profiles",
+          "5-strategies",
+          "basic-analytics"
+        ],
+        "limits": {
+          "apiCallsPerMonth": 1000,
+          "symbols": 10,
+          "strategies": 5
+        }
+      },
+      "premium": {
+        "name": "Premium",
+        "price": 2999,
+        "interval": "month",
+        "features": [
+          "market-data-realtime",
+          "advanced-analytics",
+          "unlimited-strategies",
+          "api-access",
+          "priority-support"
+        ],
+        "limits": {
+          "apiCallsPerMonth": 50000,
+          "symbols": 100,
+          "strategies": 50
+        }
+      },
+      "enterprise": {
+        "name": "Enterprise",
+        "price": 9999,
+        "interval": "month",
+        "features": [
+          "all-features",
+          "custom-integrations",
+          "dedicated-support",
+          "white-label-options",
+          "advanced-risk-tools"
+        ],
+        "limits": {
+          "apiCallsPerMonth": 500000,
+          "symbols": 1000,
+          "strategies": 500
+        }
+      }
+    }
+  },
+  "fees": {
+    "copyTrading": {
+      "performanceFee": 0.02,
+      "baseBps": 10,
+      "minFee": 5.0
+    },
+    "billing": {
+      "transactionFee": 0.029,
+      "currencyConversion": 0.01
+    }
+  },
+  "logging": {
+    "level": "info",
+    "format": "json",
+    "enableConsole": true,
+    "enableFile": true,
+    "logDir": "./logs",
+    "maxSize": "20m",
+    "maxFiles": "90d"
+  }
+}

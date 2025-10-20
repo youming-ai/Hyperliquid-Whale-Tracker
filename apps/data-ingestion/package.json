@@ -1,0 +1,46 @@
+{
+  "name": "@hyperdash/data-ingestion",
+  "version": "1.0.0",
+  "description": "Market data ingestion service for HyperDash platform",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
+    "clean": "rm -rf dist",
+    "lint": "eslint src --ext .ts",
+    "lint:fix": "eslint src --ext .ts --fix",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@hyperdash/shared-types": "^1.0.0",
+    "@hyperdash/database": "^1.0.0",
+    "clickhouse": "^2.6.0",
+    "kafkajs": "^2.2.4",
+    "redis": "^4.6.7",
+    "ws": "^8.13.0",
+    "axios": "^1.6.0",
+    "winston": "^3.8.2",
+    "dotenv": "^16.3.1",
+    "zod": "^3.20.2"
+  },
+  "devDependencies": {
+    "@types/node": "^18.0.0",
+    "@types/ws": "^8.5.3",
+    "@types/jest": "^29.5.0",
+    "@typescript-eslint/eslint-plugin": "^5.48.0",
+    "@typescript-eslint/parser": "^5.48.0",
+    "eslint": "^8.31.0",
+    "jest": "^29.5.0",
+    "ts-jest": "^29.1.0",
+    "ts-node": "^10.9.1",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^4.9.3"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

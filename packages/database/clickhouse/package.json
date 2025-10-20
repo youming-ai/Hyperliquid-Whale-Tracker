@@ -1,0 +1,25 @@
+{
+  "name": "@hyperdash/clickhouse",
+  "version": "1.0.0",
+  "description": "ClickHouse database schemas and queries for HyperDash platform",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist",
+    "migrate": "tsx migrate.ts",
+    "type-check": "tsc --noEmit",
+    "query": "tsx query-runner.ts"
+  },
+  "dependencies": {
+    "@clickhouse/client": "^1.0.1",
+    "@hyperdash/shared-types": "file:../../shared-types",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.5",
+    "tsx": "^4.6.2",
+    "typescript": "^5.3.3"
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "name": "@hyperdash/postgres",
+  "version": "1.0.0",
+  "description": "PostgreSQL database schemas and migrations for HyperDash platform",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist",
+    "migrate": "tsx migrate.ts",
+    "migrate:generate": "drizzle-kit generate:pg",
+    "migrate:push": "tsx push-migration.ts",
+    "seed": "tsx seed.ts",
+    "studio": "drizzle-kit studio",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@hyperdash/shared-types": "file:../../shared-types",
+    "drizzle-orm": "^0.29.3",
+    "postgres": "^3.4.3",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.5",
+    "drizzle-kit": "^0.20.7",
+    "tsx": "^4.6.2",
+    "typescript": "^5.3.3"
+  }
+}
