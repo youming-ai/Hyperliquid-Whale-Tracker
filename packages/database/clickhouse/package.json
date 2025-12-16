@@ -14,7 +14,7 @@
   },
   "dependencies": {
     "@clickhouse/client": "^1.0.1",
-    "@hyperdash/shared-types": "file:../../shared-types",
+    "@hyperdash/shared-types": "workspace:*",
     "zod": "^3.22.4"
   },
   "devDependencies": {

@@ -3,7 +3,7 @@ import { WebhookService } from '../services/webhookService';
 import { logger } from '../utils/logger';
 import { config } from '../config';
 import { createError } from '../middleware/errorHandler';
-import crypto from 'crypto';
+import Stripe from 'stripe';
 
 const webhookService = new WebhookService();
 
@@ -22,10 +22,11 @@ export const handleStripeWebhook = async (req: Request, res: Response) => {
     // Verify webhook signature
     let event;
     try {
-      event = require('stripe')(config.stripe.secretKey).webhooks.constructEvent(
+      const stripe = new Stripe(config.stripe.secretKey!);
+      event = stripe.webhooks.constructEvent(
         req.body,
         sig,
-        config.stripe.webhookSecret
+        config.stripe.webhookSecret!
       );
     } catch (err) {
       logger.error('Webhook signature verification failed:', err);

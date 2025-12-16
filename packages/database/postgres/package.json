@@ -16,7 +16,7 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "@hyperdash/shared-types": "file:../../shared-types",
+    "@hyperdash/shared-types": "workspace:*",
     "drizzle-orm": "^0.29.3",
     "postgres": "^3.4.3",
     "zod": "^3.22.4"

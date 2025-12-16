@@ -14,9 +14,9 @@
     "lint:fix": "eslint src --ext .ts,.tsx --fix"
   },
   "dependencies": {
-    "@hyperdash/shared-types": "file:../packages/shared-types",
-    "@hyperdash/database": "file:../packages/database",
-    "@hyperdash/contracts": "file:../packages/contracts",
+    "@hyperdash/shared-types": "workspace:*",
+    "@hyperdash/database": "workspace:*",
+    "@hyperdash/contracts": "workspace:*",
     "@trpc/server": "^10.43.6",
     "express": "^4.18.2",
     "cors": "^2.8.5",

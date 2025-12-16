@@ -16,8 +16,8 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "@hyperdash/shared-types": "^1.0.0",
-    "@hyperdash/database": "^1.0.0",
+    "@hyperdash/shared-types": "workspace:*",
+    "@hyperdash/database": "workspace:*",
     "stripe": "^12.18.0",
     "redis": "^4.6.7",
     "winston": "^3.8.2",
@@ -27,7 +27,7 @@
   "devDependencies": {
     "@types/node": "^18.0.0",
     "@types/jest": "^29.5.0",
-    "@types/stripe": "^12.0.0",
+    "@types/stripe": "^8.0.417",
     "@typescript-eslint/eslint-plugin": "^5.48.0",
     "@typescript-eslint/parser": "^5.48.0",
     "eslint": "^8.31.0",
