@@ -207,3 +207,7 @@ datasets/
 # Local scripts
 scripts/local/
 local/
+
+# TanStack Start / Nitro
+.output/
+.vinxi/
