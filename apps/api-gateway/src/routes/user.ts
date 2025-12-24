@@ -1,6 +1,6 @@
-import { z } from 'zod';
-import { t, protectedProcedure } from '@hyperdash/contracts';
+import { protectedProcedure, t } from '@hyperdash/contracts';
 import { schemas } from '@hyperdash/shared-types';
+import { z } from 'zod';
 
 /**
  * User Management Router
@@ -9,76 +9,83 @@ import { schemas } from '@hyperdash/shared-types';
  */
 export const userRouter = t.router({
   // Get user profile
-  profile: protectedProcedure
-    .query(async ({ ctx }) => {
-      const userId = ctx.user!.userId;
+  profile: protectedProcedure.query(async ({ ctx }) => {
+    const userId = ctx.user!.userId;
 
-      // Implementation will query PostgreSQL for user profile
-      // Mock data for now
-      const mockProfile = {
-        userId,
-        email: 'user@example.com',
-        walletAddr: ctx.user!.walletAddr,
-        kycLevel: ctx.user!.kycLevel,
-        status: 'active',
-        preferences: {
-          theme: 'dark',
-          language: 'en',
-          timezone: 'UTC',
-          notifications: {
-            email: true,
-            push: true,
-            trading: true,
-            priceAlerts: true,
-          },
-          privacy: {
-            showFollowing: false,
-            showPortfolio: false,
-            allowAnalytics: true,
-          },
+    // Implementation will query PostgreSQL for user profile
+    // Mock data for now
+    const mockProfile = {
+      userId,
+      email: 'user@example.com',
+      walletAddr: ctx.user!.walletAddr,
+      kycLevel: ctx.user!.kycLevel,
+      status: 'active',
+      preferences: {
+        theme: 'dark',
+        language: 'en',
+        timezone: 'UTC',
+        notifications: {
+          email: true,
+          push: true,
+          trading: true,
+          priceAlerts: true,
         },
-        subscription: {
-          tier: 'premium',
-          expiresAt: new Date(Date.now() + 30 * 86400000).toISOString(),
-          features: ['unlimited_symbols', 'advanced_analytics', 'api_access'],
+        privacy: {
+          showFollowing: false,
+          showPortfolio: false,
+          allowAnalytics: true,
         },
-        stats: {
-          totalStrategies: 3,
-          activeStrategies: 2,
-          totalTradersFollowed: 5,
-          totalPnl: 12500,
-          totalVolume: 500000,
-          joinDate: '2024-01-15T10:30:00Z',
-          lastLogin: new Date().toISOString(),
-        },
-        createdAt: '2024-01-15T10:30:00Z',
-        updatedAt: new Date().toISOString(),
-      };
+      },
+      subscription: {
+        tier: 'premium',
+        expiresAt: new Date(Date.now() + 30 * 86400000).toISOString(),
+        features: ['unlimited_symbols', 'advanced_analytics', 'api_access'],
+      },
+      stats: {
+        totalStrategies: 3,
+        activeStrategies: 2,
+        totalTradersFollowed: 5,
+        totalPnl: 12500,
+        totalVolume: 500000,
+        joinDate: '2024-01-15T10:30:00Z',
+        lastLogin: new Date().toISOString(),
+      },
+      createdAt: '2024-01-15T10:30:00Z',
+      updatedAt: new Date().toISOString(),
+    };
 
-      return schemas.UserProfile.parse(mockProfile);
-    }),
+    return schemas.UserProfile.parse(mockProfile);
+  }),
 
   // Update user profile
   updateProfile: protectedProcedure
-    .input(z.object({
-      email: z.string().email().optional(),
-      preferences: z.object({
-        theme: z.enum(['light', 'dark']).optional(),
-        language: z.string().optional(),
-        timezone: z.string().optional(),
-        notifications: z.object({
-          email: z.boolean().optional(),
-          push: z.boolean().optional(),
-          trading: z.boolean().optional(),
-          priceAlerts: z.boolean().optional(),
-        }).optional(),
-        privacy: z.object({
-          showFollowing: z.boolean().optional(),
-          showPortfolio: z.boolean().optional(),
-          allowAnalytics: z.boolean().optional(),
-        }).optional(),
-      }).optional(),
-    }))
+    .input(
+      z.object({
+        email: z.string().email().optional(),
+        preferences: z
+          .object({
+            theme: z.enum(['light', 'dark']).optional(),
+            language: z.string().optional(),
+            timezone: z.string().optional(),
+            notifications: z
+              .object({
+                email: z.boolean().optional(),
+                push: z.boolean().optional(),
+                trading: z.boolean().optional(),
+                priceAlerts: z.boolean().optional(),
+              })
+              .optional(),
+            privacy: z
+              .object({
+                showFollowing: z.boolean().optional(),
+                showPortfolio: z.boolean().optional(),
+                allowAnalytics: z.boolean().optional(),
+              })
+              .optional(),
+          })
+          .optional(),
+      }),
+    )
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.user!.userId;
       const updates = input;
@@ -96,78 +103,79 @@ export const userRouter = t.router({
     }),
 
   // Get user's agent wallets
-  wallets: protectedProcedure
-    .query(async ({ ctx }) => {
-      const userId = ctx.user!.userId;
+  wallets: protectedProcedure.query(async ({ ctx }) => {
+    const userId = ctx.user!.userId;
 
-      // Implementation will query PostgreSQL for user's agent wallets
-      // Mock data for now
-      const mockWallets = [
-        {
-          id: 'wallet_1',
-          userId,
-          exchange: 'hyperliquid',
-          address: '0x1234567890abcdef1234567890abcdef12345678',
-          status: 'active',
-          minOrderUsd: 100,
-          maxLeverage: 5,
-          permissions: { trade: true, withdraw: false },
-          metadata: { name: 'Main Trading Wallet' },
-          positions: [
-            {
-              symbol: 'BTC-PERP',
-              side: 'long',
-              size: 1.5,
-              entryPrice: 42000,
-              markPrice: 42500,
-              unrealizedPnl: 750,
-            },
-          ],
-          balance: {
-            total: 25000,
-            available: 15000,
-            used: 10000,
+    // Implementation will query PostgreSQL for user's agent wallets
+    // Mock data for now
+    const mockWallets = [
+      {
+        id: 'wallet_1',
+        userId,
+        exchange: 'hyperliquid',
+        address: '0x1234567890abcdef1234567890abcdef12345678',
+        status: 'active',
+        minOrderUsd: 100,
+        maxLeverage: 5,
+        permissions: { trade: true, withdraw: false },
+        metadata: { name: 'Main Trading Wallet' },
+        positions: [
+          {
+            symbol: 'BTC-PERP',
+            side: 'long',
+            size: 1.5,
+            entryPrice: 42000,
+            markPrice: 42500,
+            unrealizedPnl: 750,
           },
-          createdAt: '2024-01-15T10:30:00Z',
-          updatedAt: new Date().toISOString(),
+        ],
+        balance: {
+          total: 25000,
+          available: 15000,
+          used: 10000,
         },
-        {
-          id: 'wallet_2',
-          userId,
-          exchange: 'hyperliquid',
-          address: '0xabcdef1234567890abcdef1234567890abcdef12',
-          status: 'inactive',
-          minOrderUsd: 50,
-          maxLeverage: 3,
-          permissions: { trade: true, withdraw: false },
-          metadata: { name: 'Testing Wallet' },
-          positions: [],
-          balance: {
-            total: 5000,
-            available: 5000,
-            used: 0,
-          },
-          createdAt: '2024-02-01T14:20:00Z',
-          updatedAt: '2024-02-15T09:45:00Z',
+        createdAt: '2024-01-15T10:30:00Z',
+        updatedAt: new Date().toISOString(),
+      },
+      {
+        id: 'wallet_2',
+        userId,
+        exchange: 'hyperliquid',
+        address: '0xabcdef1234567890abcdef1234567890abcdef12',
+        status: 'inactive',
+        minOrderUsd: 50,
+        maxLeverage: 3,
+        permissions: { trade: true, withdraw: false },
+        metadata: { name: 'Testing Wallet' },
+        positions: [],
+        balance: {
+          total: 5000,
+          available: 5000,
+          used: 0,
         },
-      ];
+        createdAt: '2024-02-01T14:20:00Z',
+        updatedAt: '2024-02-15T09:45:00Z',
+      },
+    ];
 
-      return mockWallets.map(wallet => schemas.AgentWallet.parse(wallet));
-    }),
+    return mockWallets.map((wallet) => schemas.AgentWallet.parse(wallet));
+  }),
 
   // Add new agent wallet
   addWallet: kycProcedure(1)
-    .input(z.object({
-      exchange: z.string().default('hyperliquid'),
-      address: z.string(),
-      minOrderUsd: z.number().positive().default(100),
-      maxLeverage: z.number().min(1).max(10).default(5),
-      permissions: z.object({
-        trade: z.boolean().default(true),
-        withdraw: z.boolean().default(false),
+    .input(
+      z.object({
+        exchange: z.string().default('hyperliquid'),
+        address: z.string(),
+        minOrderUsd: z.number().positive().default(100),
+        maxLeverage: z.number().min(1).max(10).default(5),
+        permissions: z.object({
+          trade: z.boolean().default(true),
+          withdraw: z.boolean().default(false),
+        }),
+        metadata: z.record(z.any()).optional(),
       }),
-      metadata: z.record(z.any()).optional(),
-    }))
+    )
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.user!.userId;
       const { exchange, address, minOrderUsd, maxLeverage, permissions, metadata } = input;
@@ -196,10 +204,12 @@ export const userRouter = t.router({
 
   // Get user's price alerts
   alerts: protectedProcedure
-    .input(z.object({
-      status: z.enum(['active', 'triggered', 'all']).default('active'),
-      limit: z.number().min(1).max(50).default(20),
-    }))
+    .input(
+      z.object({
+        status: z.enum(['active', 'triggered', 'all']).default('active'),
+        limit: z.number().min(1).max(50).default(20),
+      }),
+    )
     .query(async ({ input, ctx }) => {
       const { status, limit } = input;
       const userId = ctx.user!.userId;
@@ -230,20 +240,23 @@ export const userRouter = t.router({
         },
       ];
 
-      const filtered = status === 'all' ? mockAlerts : mockAlerts.filter(alert => alert.status === status);
-      return filtered.slice(0, limit).map(alert => schemas.PriceAlert.parse(alert));
+      const filtered =
+        status === 'all' ? mockAlerts : mockAlerts.filter((alert) => alert.status === status);
+      return filtered.slice(0, limit).map((alert) => schemas.PriceAlert.parse(alert));
     }),
 
   // Create price alert
   createAlert: protectedProcedure
-    .input(z.object({
-      symbol: z.string(),
-      type: z.enum(['price_above', 'price_below', 'percent_change']),
-      targetPrice: z.number().optional(),
-      percentChange: z.number().optional(),
-      repeat: z.boolean().default(false),
-      expiresAt: z.string().optional(),
-    }))
+    .input(
+      z.object({
+        symbol: z.string(),
+        type: z.enum(['price_above', 'price_below', 'percent_change']),
+        targetPrice: z.number().optional(),
+        percentChange: z.number().optional(),
+        repeat: z.boolean().default(false),
+        expiresAt: z.string().optional(),
+      }),
+    )
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.user!.userId;
       const { symbol, type, targetPrice, percentChange, repeat, expiresAt } = input;
@@ -270,9 +283,11 @@ export const userRouter = t.router({
 
   // Delete price alert
   deleteAlert: protectedProcedure
-    .input(z.object({
-      alertId: z.string(),
-    }))
+    .input(
+      z.object({
+        alertId: z.string(),
+      }),
+    )
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.user!.userId;
       const { alertId } = input;
@@ -290,12 +305,14 @@ export const userRouter = t.router({
 
   // Get user's notifications
   notifications: protectedProcedure
-    .input(z.object({
-      type: z.enum(['all', 'trading', 'system', 'price', 'social']).default('all'),
-      read: z.boolean().optional(),
-      limit: z.number().min(1).max(50).default(20),
-      offset: z.number().min(0).default(0),
-    }))
+    .input(
+      z.object({
+        type: z.enum(['all', 'trading', 'system', 'price', 'social']).default('all'),
+        read: z.boolean().optional(),
+        limit: z.number().min(1).max(50).default(20),
+        offset: z.number().min(0).default(0),
+      }),
+    )
     .query(async ({ input, ctx }) => {
       const { type, read, limit, offset } = input;
       const userId = ctx.user!.userId;
@@ -337,26 +354,28 @@ export const userRouter = t.router({
 
       let filtered = mockNotifications;
       if (type !== 'all') {
-        filtered = filtered.filter(notif => notif.type === type);
+        filtered = filtered.filter((notif) => notif.type === type);
       }
       if (read !== undefined) {
-        filtered = filtered.filter(notif => notif.read === read);
+        filtered = filtered.filter((notif) => notif.read === read);
       }
 
       const paginated = filtered.slice(offset, offset + limit);
       return {
-        notifications: paginated.map(notif => schemas.Notification.parse(notif)),
+        notifications: paginated.map((notif) => schemas.Notification.parse(notif)),
         total: filtered.length,
-        unread: filtered.filter(notif => !notif.read).length,
+        unread: filtered.filter((notif) => !notif.read).length,
       };
     }),
 
   // Mark notifications as read
   markNotificationsRead: protectedProcedure
-    .input(z.object({
-      notificationIds: z.array(z.string()).optional(),
-      markAll: z.boolean().default(false),
-    }))
+    .input(
+      z.object({
+        notificationIds: z.array(z.string()).optional(),
+        markAll: z.boolean().default(false),
+      }),
+    )
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.user!.userId;
       const { notificationIds, markAll } = input;
@@ -371,19 +390,21 @@ export const userRouter = t.router({
 
       return {
         success: true,
-        markedCount: markAll ? -1 : (notificationIds?.length || 0),
+        markedCount: markAll ? -1 : notificationIds?.length || 0,
         timestamp: new Date().toISOString(),
       };
     }),
 
   // Get user's trading history
   tradingHistory: protectedProcedure
-    .input(z.object({
-      limit: z.number().min(1).max(100).default(50),
-      offset: z.number().min(0).default(0),
-      symbol: z.string().optional(),
-      strategyId: z.string().optional(),
-    }))
+    .input(
+      z.object({
+        limit: z.number().min(1).max(100).default(50),
+        offset: z.number().min(0).default(0),
+        symbol: z.string().optional(),
+        strategyId: z.string().optional(),
+      }),
+    )
     .query(async ({ input, ctx }) => {
       const { limit, offset, symbol, strategyId } = input;
       const userId = ctx.user!.userId;
@@ -404,14 +425,16 @@ export const userRouter = t.router({
         timestamp: new Date(Date.now() - (offset + i) * 3600000).toISOString(),
       }));
 
-      return mockHistory.map(trade => schemas.UserTrade.parse(trade));
+      return mockHistory.map((trade) => schemas.UserTrade.parse(trade));
     }),
 
   // Get user statistics
   statistics: protectedProcedure
-    .input(z.object({
-      timeframe: z.enum(['7d', '30d', '90d', 'all']).default('30d'),
-    }))
+    .input(
+      z.object({
+        timeframe: z.enum(['7d', '30d', '90d', 'all']).default('30d'),
+      }),
+    )
     .query(async ({ input, ctx }) => {
       const { timeframe } = input;
       const userId = ctx.user!.userId;

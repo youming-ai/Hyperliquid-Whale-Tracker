@@ -118,10 +118,11 @@ export class RedisConnection {
 
       console.log('✅ Redis connections established successfully');
       this.isInitialized = true;
-
     } catch (error) {
       console.error('❌ Failed to initialize Redis connections:', error);
-      throw new Error(`Redis connection failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Redis connection failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
     }
   }
 
@@ -141,7 +142,11 @@ export class RedisConnection {
     return this.redisV4;
   }
 
-  async healthCheck(): Promise<{ status: 'healthy' | 'unhealthy'; latency?: number; error?: string }> {
+  async healthCheck(): Promise<{
+    status: 'healthy' | 'unhealthy';
+    latency?: number;
+    error?: string;
+  }> {
     try {
       if (!this.redis || !this.redisV4) {
         return { status: 'unhealthy', error: 'Redis clients not initialized' };
@@ -155,7 +160,7 @@ export class RedisConnection {
     } catch (error) {
       return {
         status: 'unhealthy',
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: error instanceof Error ? error.message : 'Unknown error',
       };
     }
   }
@@ -252,7 +257,7 @@ export class RedisConnection {
     const sizes = ['Bytes', 'KB', 'MB', 'GB'];
     if (bytes === 0) return '0 Bytes';
     const i = Math.floor(Math.log(bytes) / Math.log(1024));
-    return Math.round(bytes / Math.pow(1024, i) * 100) / 100 + ' ' + sizes[i];
+    return Math.round((bytes / 1024 ** i) * 100) / 100 + ' ' + sizes[i];
   }
 }
 

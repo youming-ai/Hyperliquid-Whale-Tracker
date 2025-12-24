@@ -1,10 +1,10 @@
-import express from 'express';
-import cors from 'cors';
-import helmet from 'helmet';
 import { createExpressMiddleware } from '@trpc/server/adapters/express';
-import { appRouter } from './routes';
+import cors from 'cors';
+import express from 'express';
+import helmet from 'helmet';
 import { createContext } from './lib/context';
 import { WebSocketServer } from './lib/websocket';
+import { appRouter } from './routes';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -20,7 +20,7 @@ app.use(
   createExpressMiddleware({
     router: appRouter,
     createContext,
-  })
+  }),
 );
 
 // Health check endpoint

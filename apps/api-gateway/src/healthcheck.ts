@@ -3,29 +3,28 @@ import { getLogger } from './utils/logger';
 
 const logger = getLogger();
 
-
 const healthCheck = async () => {
   const checks = {
     server: {
       status: 'healthy',
       uptime: process.uptime(),
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     },
     database: await checkDatabase(),
     redis: await checkRedis(),
     kafka: await checkKafka(),
-    external_apis: await checkExternalAPIs()
+    external_apis: await checkExternalAPIs(),
   };
 
   // Overall health status
-  const overallHealth = Object.values(checks).every(check => check.status === 'healthy');
+  const overallHealth = Object.values(checks).every((check) => check.status === 'healthy');
 
   const healthData = {
     status: overallHealth ? 'healthy' : 'unhealthy',
     timestamp: new Date().toISOString(),
     checks,
     version: process.env.npm_package_version || '1.0.0',
-    environment: process.env.NODE_ENV || 'development'
+    environment: process.env.NODE_ENV || 'development',
   };
 
   logger.info('Health check completed', healthData);
@@ -38,14 +37,14 @@ const checkDatabase = async () => {
     return {
       status: 'healthy',
       latency: Math.floor(Math.random() * 50) + 10, // Mock latency
-      lastCheck: new Date().toISOString()
+      lastCheck: new Date().toISOString(),
     };
   } catch (error) {
     logger.error('Database health check failed:', error);
     return {
       status: 'unhealthy',
       error: error.message,
-      lastCheck: new Date().toISOString()
+      lastCheck: new Date().toISOString(),
     };
   }
 };
@@ -56,14 +55,14 @@ const checkRedis = async () => {
     return {
       status: 'healthy',
       latency: Math.floor(Math.random() * 20) + 5, // Mock latency
-      lastCheck: new Date().toISOString()
+      lastCheck: new Date().toISOString(),
     };
   } catch (error) {
     logger.error('Redis health check failed:', error);
     return {
       status: 'unhealthy',
       error: error.message,
-      lastCheck: new Date().toISOString()
+      lastCheck: new Date().toISOString(),
     };
   }
 };
@@ -74,14 +73,14 @@ const checkKafka = async () => {
     return {
       status: 'healthy',
       connectedBrokers: 1,
-      lastCheck: new Date().toISOString()
+      lastCheck: new Date().toISOString(),
     };
   } catch (error) {
     logger.error('Kafka health check failed:', error);
     return {
       status: 'unhealthy',
       error: error.message,
-      lastCheck: new Date().toISOString()
+      lastCheck: new Date().toISOString(),
     };
   }
 };
@@ -93,16 +92,16 @@ const checkExternalAPIs = async () => {
     return {
       status: hyperliquidCheck.status,
       apis: {
-        hyperliquid: hyperliquidCheck
+        hyperliquid: hyperliquidCheck,
       },
-      lastCheck: new Date().toISOString()
+      lastCheck: new Date().toISOString(),
     };
   } catch (error) {
     logger.error('External API health check failed:', error);
     return {
       status: 'unhealthy',
       error: error.message,
-      lastCheck: new Date().toISOString()
+      lastCheck: new Date().toISOString(),
     };
   }
 };
@@ -113,13 +112,13 @@ const checkHyperliquidAPI = async () => {
     return {
       status: 'healthy',
       latency: Math.floor(Math.random() * 500) + 200, // Mock latency
-      lastCheck: new Date().toISOString()
+      lastCheck: new Date().toISOString(),
     };
   } catch (error) {
     return {
       status: 'unhealthy',
       error: error.message,
-      lastCheck: new Date().toISOString()
+      lastCheck: new Date().toISOString(),
     };
   }
 };
@@ -132,18 +131,20 @@ const server = http.createServer(async (req, res) => {
 
     res.writeHead(isHealthy ? 200 : 503, {
       'Content-Type': 'application/json',
-      'Cache-Control': 'no-cache'
+      'Cache-Control': 'no-cache',
     });
 
     res.end(JSON.stringify(healthData, null, 2));
   } catch (error) {
     logger.error('Health check server error:', error);
     res.writeHead(500, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({
-      status: 'error',
-      message: 'Health check failed',
-      timestamp: new Date().toISOString()
-    }));
+    res.end(
+      JSON.stringify({
+        status: 'error',
+        message: 'Health check failed',
+        timestamp: new Date().toISOString(),
+      }),
+    );
   }
 });
 

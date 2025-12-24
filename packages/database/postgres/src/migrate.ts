@@ -2,8 +2,8 @@ import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 import * as schema from './schema';
 
-const connectionString = process.env.DATABASE_URL ||
-  'postgresql://hyperdash:hyperdash_password@localhost:5432/hyperdash';
+const connectionString =
+  process.env.DATABASE_URL || 'postgresql://hyperdash:hyperdash_password@localhost:5432/hyperdash';
 
 async function runMigrations() {
   console.log('Starting PostgreSQL migrations...');
@@ -323,7 +323,6 @@ async function runMigrations() {
     `;
 
     console.log('✅ PostgreSQL migrations completed successfully!');
-
   } catch (error) {
     console.error('❌ Migration failed:', error);
     throw error;

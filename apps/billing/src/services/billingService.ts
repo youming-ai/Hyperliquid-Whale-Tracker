@@ -1,7 +1,7 @@
+import { config } from '../config';
+import { logger } from '../utils/logger';
 import { PostgreSQLService } from './postgreService';
 import { RedisService } from './redisService';
-import { logger } from '../utils/logger';
-import { config } from '../config';
 
 interface UsageMetrics {
   apiCalls: {

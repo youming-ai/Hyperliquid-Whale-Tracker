@@ -36,7 +36,10 @@ class RateLimiter {
     }
   }
 
-  consume(key: string, config: RateLimitConfig): {
+  consume(
+    key: string,
+    config: RateLimitConfig,
+  ): {
     allowed: boolean;
     remaining: number;
     resetTime: number;

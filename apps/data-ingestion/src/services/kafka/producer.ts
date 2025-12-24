@@ -1,6 +1,6 @@
-import { Kafka, Producer, ProducerRecord } from 'kafkajs';
-import { Logger } from 'winston';
-import { TOPICS, TOPIC_SCHEMAS } from '../../config/topics';
+import { Kafka, type Producer, type ProducerRecord } from 'kafkajs';
+import type { Logger } from 'winston';
+import { TOPIC_SCHEMAS, TOPICS } from '../../config/topics';
 
 export interface KafkaProducerConfig {
   clientId: string;
@@ -54,15 +54,15 @@ export class KafkaEventProducer {
       requestTimeout: config.requestTimeout || 30000,
       retry: config.retry || {
         initialRetryTime: 100,
-        retries: 8
-      }
+        retries: 8,
+      },
     });
 
     this.producer = this.kafka.producer({
       maxInFlightRequests: 1,
       idempotent: true,
       transactionTimeout: 60000,
-      allowAutoTopicCreation: false
+      allowAutoTopicCreation: false,
     });
 
     this.setupEventHandlers();
@@ -119,7 +119,7 @@ export class KafkaEventProducer {
     version = '1.0.0',
     correlationId?: string,
     userId?: string,
-    traceId?: string
+    traceId?: string,
   ): MessageMetadata {
     return {
       messageId: this.generateMessageId(),
@@ -128,7 +128,7 @@ export class KafkaEventProducer {
       version,
       correlationId,
       userId,
-      traceId
+      traceId,
     };
   }
 
@@ -143,7 +143,7 @@ export class KafkaEventProducer {
       traceId?: string;
       source?: string;
       version?: string;
-    } = {}
+    } = {},
   ): Promise<void> {
     if (!this.isConnected) {
       throw new Error('Kafka producer is not connected');
@@ -156,7 +156,7 @@ export class KafkaEventProducer {
       userId,
       traceId,
       source = this.config.clientId,
-      version = '1.0.0'
+      version = '1.0.0',
     } = options;
 
     const metadata = this.createMetadata(source, version, correlationId, userId, traceId);
@@ -166,20 +166,22 @@ export class KafkaEventProducer {
       headers: {
         ...headers,
         'content-type': 'application/json',
-        'schema-version': version
-      }
+        'schema-version': version,
+      },
     };
 
     const record: ProducerRecord = {
       topic,
-      messages: [{
-        key: key || message.metadata.messageId,
-        value: JSON.stringify(message),
-        headers: Object.entries(message.headers).map(([key, value]) => ({
-          key,
-          value: Buffer.from(value)
-        }))
-      }]
+      messages: [
+        {
+          key: key || message.metadata.messageId,
+          value: JSON.stringify(message),
+          headers: Object.entries(message.headers).map(([key, value]) => ({
+            key,
+            value: Buffer.from(value),
+          })),
+        },
+      ],
     };
 
     try {
@@ -188,7 +190,7 @@ export class KafkaEventProducer {
         messageId: metadata.messageId,
         topic,
         key,
-        payloadSize: JSON.stringify(payload).length
+        payloadSize: JSON.stringify(payload).length,
       });
     } catch (error) {
       this.logger.error(`Failed to publish event to ${topic}:`, error);
@@ -207,7 +209,7 @@ export class KafkaEventProducer {
       ask?: number;
       source?: string;
       userId?: string;
-    } = {}
+    } = {},
   ): Promise<void> {
     const payload = {
       symbol,
@@ -217,12 +219,12 @@ export class KafkaEventProducer {
       exchange,
       bid: options.bid,
       ask: options.ask,
-      source: options.source || 'hyperdash'
+      source: options.source || 'hyperdash',
     };
 
     await this.publishEvent(TOPICS.MARKET_PRICE_UPDATES.name, payload, {
       key: symbol,
-      userId: options.userId
+      userId: options.userId,
     });
   }
 
@@ -237,7 +239,7 @@ export class KafkaEventProducer {
       buyer?: string;
       seller?: string;
       userId?: string;
-    } = {}
+    } = {},
   ): Promise<void> {
     const payload = {
       id: tradeId,
@@ -248,12 +250,12 @@ export class KafkaEventProducer {
       timestamp: Date.now(),
       exchange,
       buyer: options.buyer,
-      seller: options.seller
+      seller: options.seller,
     };
 
     await this.publishEvent(TOPICS.MARKET_TRADES.name, payload, {
       key: `${symbol}_${tradeId}`,
-      userId: options.userId
+      userId: options.userId,
     });
   }
 
@@ -272,7 +274,7 @@ export class KafkaEventProducer {
       isWhale?: boolean;
       confidenceScore?: number;
       userId?: string;
-    } = {}
+    } = {},
   ): Promise<void> {
     const payload = {
       trader_id: traderId,
@@ -286,12 +288,12 @@ export class KafkaEventProducer {
       portfolio_value: options.portfolioValue || 0,
       timestamp: Date.now(),
       is_whale: options.isWhale || false,
-      confidence_score: options.confidenceScore || 0
+      confidence_score: options.confidenceScore || 0,
     };
 
     await this.publishEvent(TOPICS.TRADER_POSITION_UPDATES.name, payload, {
       key: traderId,
-      userId: options.userId
+      userId: options.userId,
     });
   }
 
@@ -310,7 +312,7 @@ export class KafkaEventProducer {
       feesPaid?: number;
       delayMs?: number;
       userId?: string;
-    } = {}
+    } = {},
   ): Promise<void> {
     const payload = {
       event_id: this.generateMessageId(),
@@ -325,12 +327,12 @@ export class KafkaEventProducer {
       side,
       timestamp: Date.now(),
       fees_paid: options.feesPaid || 0,
-      delay_ms: options.delayMs || 0
+      delay_ms: options.delayMs || 0,
     };
 
     await this.publishEvent(TOPICS.COPY_TRADE_EVENTS.name, payload, {
       key: relationshipId,
-      userId: options.userId || followerId
+      userId: options.userId || followerId,
     });
   }
 
@@ -346,7 +348,7 @@ export class KafkaEventProducer {
       userAgent?: string;
       correlationId?: string;
       traceId?: string;
-    } = {}
+    } = {},
   ): Promise<void> {
     const payload = {
       user_id: userId,
@@ -356,14 +358,14 @@ export class KafkaEventProducer {
       timestamp: Date.now(),
       metadata,
       ip_address: options.ipAddress,
-      user_agent: options.userAgent
+      user_agent: options.userAgent,
     };
 
     await this.publishEvent(TOPICS.USER_EVENTS.name, payload, {
       key: userId,
       correlationId: options.correlationId,
       traceId: options.traceId,
-      userId
+      userId,
     });
   }
 
@@ -379,7 +381,7 @@ export class KafkaEventProducer {
       responseTimeMs: number;
       errorRate: number;
       throughput: number;
-    }
+    },
   ): Promise<void> {
     const payload = {
       service: serviceName,
@@ -391,11 +393,11 @@ export class KafkaEventProducer {
       active_connections: metrics.activeConnections,
       response_time_ms: metrics.responseTimeMs,
       error_rate: metrics.errorRate,
-      throughput: metrics.throughput
+      throughput: metrics.throughput,
     };
 
     await this.publishEvent(TOPICS.SYSTEM_METRICS.name, payload, {
-      key: serviceName
+      key: serviceName,
     });
   }
 
@@ -411,7 +413,7 @@ export class KafkaEventProducer {
       context?: Record<string, any>;
       correlationId?: string;
       traceId?: string;
-    } = {}
+    } = {},
   ): Promise<void> {
     const payload = {
       error_id: errorId,
@@ -422,14 +424,14 @@ export class KafkaEventProducer {
       timestamp: Date.now(),
       user_id: options.userId,
       request_id: options.requestId,
-      context: options.context || {}
+      context: options.context || {},
     };
 
     await this.publishEvent(TOPICS.ERROR_EVENTS.name, payload, {
       key: errorType,
       correlationId: options.correlationId,
       traceId: options.traceId,
-      userId: options.userId
+      userId: options.userId,
     });
   }
 
@@ -442,7 +444,7 @@ export class KafkaEventProducer {
     options: {
       priority?: 'low' | 'medium' | 'high' | 'critical';
       correlationId?: string;
-    } = {}
+    } = {},
   ): Promise<void> {
     const payload = {
       user_id: userId,
@@ -450,39 +452,46 @@ export class KafkaEventProducer {
       message,
       data,
       priority: options.priority || 'medium',
-      timestamp: Date.now()
+      timestamp: Date.now(),
     };
 
     await this.publishEvent(TOPICS.USER_ALERTS.name, payload, {
       key: userId,
       correlationId: options.correlationId,
-      userId
+      userId,
     });
   }
 
   // Batch publish for high-throughput scenarios
-  async publishBatch(records: Array<{
-    topic: string;
-    payload: any;
-    key?: string;
-    headers?: Record<string, string>;
-    userId?: string;
-  }>): Promise<void> {
+  async publishBatch(
+    records: Array<{
+      topic: string;
+      payload: any;
+      key?: string;
+      headers?: Record<string, string>;
+      userId?: string;
+    }>,
+  ): Promise<void> {
     if (!this.isConnected) {
       throw new Error('Kafka producer is not connected');
     }
 
     const kafkaRecords: ProducerRecord = {
       topic: records[0].topic, // All records in batch must have same topic for now
-      messages: records.map(record => {
-        const metadata = this.createMetadata(this.config.clientId, '1.0.0', undefined, record.userId);
+      messages: records.map((record) => {
+        const metadata = this.createMetadata(
+          this.config.clientId,
+          '1.0.0',
+          undefined,
+          record.userId,
+        );
         const message: EventMessage = {
           metadata,
           payload: record.payload,
           headers: {
             ...record.headers,
-            'content-type': 'application/json'
-          }
+            'content-type': 'application/json',
+          },
         };
 
         return {
@@ -490,10 +499,10 @@ export class KafkaEventProducer {
           value: JSON.stringify(message),
           headers: Object.entries(message.headers).map(([key, value]) => ({
             key,
-            value: Buffer.from(value)
-          }))
+            value: Buffer.from(value),
+          })),
         };
-      })
+      }),
     };
 
     try {
@@ -513,7 +522,7 @@ export class KafkaEventProducer {
       key?: string;
       headers?: Record<string, string>;
       userId?: string;
-    }>
+    }>,
   ): Promise<void> {
     if (!this.isConnected) {
       throw new Error('Kafka producer is not connected');
@@ -525,26 +534,33 @@ export class KafkaEventProducer {
       await transaction.begin();
 
       for (const record of records) {
-        const metadata = this.createMetadata(this.config.clientId, '1.0.0', undefined, record.userId);
+        const metadata = this.createMetadata(
+          this.config.clientId,
+          '1.0.0',
+          undefined,
+          record.userId,
+        );
         const message: EventMessage = {
           metadata,
           payload: record.payload,
           headers: {
             ...record.headers,
-            'content-type': 'application/json'
-          }
+            'content-type': 'application/json',
+          },
         };
 
         await transaction.send({
           topic: record.topic,
-          messages: [{
-            key: record.key || metadata.messageId,
-            value: JSON.stringify(message),
-            headers: Object.entries(message.headers).map(([key, value]) => ({
-              key,
-              value: Buffer.from(value)
-            }))
-          }]
+          messages: [
+            {
+              key: record.key || metadata.messageId,
+              value: JSON.stringify(message),
+              headers: Object.entries(message.headers).map(([key, value]) => ({
+                key,
+                value: Buffer.from(value),
+              })),
+            },
+          ],
         });
       }
 
@@ -562,7 +578,7 @@ export class KafkaEventProducer {
       if (!this.isConnected) {
         return {
           status: 'unhealthy',
-          details: { error: 'Producer not connected' }
+          details: { error: 'Producer not connected' },
         };
       }
 
@@ -574,13 +590,13 @@ export class KafkaEventProducer {
         details: {
           brokers: metadata.brokers.length,
           topics: Object.keys(metadata.topicMetadata).length,
-          clientId: this.config.clientId
-        }
+          clientId: this.config.clientId,
+        },
       };
     } catch (error) {
       return {
         status: 'unhealthy',
-        details: { error: error instanceof Error ? error.message : 'Unknown error' }
+        details: { error: error instanceof Error ? error.message : 'Unknown error' },
       };
     }
   }

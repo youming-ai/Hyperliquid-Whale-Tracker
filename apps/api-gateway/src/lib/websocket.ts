@@ -1,4 +1,4 @@
-import { WebSocketServer, WebSocket } from 'ws';
+import { WebSocket, WebSocketServer } from 'ws';
 
 export class WebSocketServer {
   private wss: WebSocketServer;
@@ -7,7 +7,7 @@ export class WebSocketServer {
   constructor(server: any) {
     this.wss = new WebSocketServer({
       server,
-      path: '/ws'
+      path: '/ws',
     });
 
     this.wss.on('connection', (ws: WebSocket, req) => {
@@ -35,11 +35,13 @@ export class WebSocketServer {
       });
 
       // Send welcome message
-      ws.send(JSON.stringify({
-        type: 'welcome',
-        clientId,
-        timestamp: new Date().toISOString()
-      }));
+      ws.send(
+        JSON.stringify({
+          type: 'welcome',
+          clientId,
+          timestamp: new Date().toISOString(),
+        }),
+      );
     });
   }
 

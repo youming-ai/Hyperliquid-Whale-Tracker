@@ -1,10 +1,12 @@
 import { Router } from 'express';
+import {
+  createPaymentMethod,
+  deletePaymentMethod,
+  getInvoices,
+  getPaymentMethods,
+  getUsageMetrics,
+} from '../controllers/billingController';
 import { asyncHandler } from '../middleware/errorHandler';
-import { getUsageMetrics } from '../controllers/billingController';
-import { getInvoices } from '../controllers/billingController';
-import { getPaymentMethods } from '../controllers/billingController';
-import { createPaymentMethod } from '../controllers/billingController';
-import { deletePaymentMethod } from '../controllers/billingController';
 
 const router = Router();
 

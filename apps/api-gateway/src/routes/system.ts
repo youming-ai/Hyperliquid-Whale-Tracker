@@ -1,6 +1,6 @@
-import { z } from 'zod';
-import { t, protectedProcedure } from '@hyperdash/contracts';
+import { protectedProcedure, t } from '@hyperdash/contracts';
 import { schemas } from '@hyperdash/shared-types';
+import { z } from 'zod';
 
 /**
  * System & Administration Router
@@ -80,7 +80,7 @@ export const systemRouter = t.router({
       timeframe: z.enum(['1h', '24h', '7d', '30d']).default('24h'),
       granularity: z.enum(['minute', 'hour', 'day']).default('hour'),
     }))
-    .query(async ({ input, ctx }) => {
+    .query(async (input, ctx ) => {
       const { timeframe, granularity } = input;
 
       // Implementation will query monitoring system
@@ -141,7 +141,7 @@ export const systemRouter = t.router({
 
   // System status dashboard
   status: t.procedure
-    .query(async ({ ctx }) => {
+    .query(async (ctx ) => {
       // Implementation will aggregate real-time system status
       // Mock data for now
       const mockStatus = {
@@ -247,10 +247,9 @@ export const systemRouter = t.router({
 
   // Configuration management (admin only)
   config: protectedProcedure
-    .input(z.object({
-      service: z.enum(['all', 'database', 'cache', 'streaming', 'copyEngine']).default('all'),
-    }))
-    .query(async ({ input, ctx }) => {
+    .input(z.object(
+      service: z.enum(['all', 'database', 'cache', 'streaming', 'copyEngine']).default('all'),))
+    .query(async (input, ctx ) => {
       // Only admin users can access configuration
       if (ctx.user?.kycLevel !== 3) {
         throw new Error("Admin access required");
@@ -307,11 +306,10 @@ export const systemRouter = t.router({
 
   // Update configuration (admin only)
   updateConfig: protectedProcedure
-    .input(z.object({
+    .input(z.object(
       service: z.enum(['database', 'cache', 'streaming', 'copyEngine', 'apiGateway']),
-      config: z.record(z.any()),
-    }))
-    .mutation(async ({ input, ctx }) => {
+      config: z.record(z.any()),))
+    .mutation(async (input, ctx ) => {
       // Only admin users can update configuration
       if (ctx.user?.kycLevel !== 3) {
         throw new Error("Admin access required");
@@ -333,11 +331,11 @@ export const systemRouter = t.router({
 
   // Service control (admin only)
   serviceControl: protectedProcedure
-    .input(z.object({
+    .input(z.object(
       service: z.enum(['copyEngine', 'dataIngestion', 'analytics']),
       action: z.enum(['restart', 'stop', 'start']),
     }))
-    .mutation(async ({ input, ctx }) => {
+    .mutation(async (input, ctx ) => {
       // Only admin users can control services
       if (ctx.user?.kycLevel !== 3) {
         throw new Error("Admin access required");
@@ -360,7 +358,7 @@ export const systemRouter = t.router({
 
   // System logs (admin only)
   logs: protectedProcedure
-    .input(z.object({
+    .input(z.object(
       service: z.enum(['all', 'apiGateway', 'database', 'cache', 'streaming', 'copyEngine', 'analytics']).default('all'),
       level: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
       limit: z.number().min(1).max(1000).default(100),
@@ -368,7 +366,7 @@ export const systemRouter = t.router({
       startTime: z.string().optional(),
       endTime: z.string().optional(),
     }))
-    .query(async ({ input, ctx }) => {
+    .query(async (input, ctx ) => {
       // Only admin users can access logs
       if (ctx.user?.kycLevel !== 3) {
         throw new Error("Admin access required");
@@ -406,16 +404,15 @@ export const systemRouter = t.router({
 
   // Audit trail (admin only)
   audit: protectedProcedure
-    .input(z.object({
+    .input(z.object(
       userId: z.string().optional(),
       resourceType: z.string().optional(),
       action: z.string().optional(),
       limit: z.number().min(1).max(100).default(50),
       offset: z.number().min(0).default(0),
       startTime: z.string().optional(),
-      endTime: z.string().optional(),
-    }))
-    .query(async ({ input, ctx }) => {
+      endTime: z.string().optional(),))
+    .query(async (input, ctx ) => {
       // Only admin users can access audit logs
       if (ctx.user?.kycLevel !== 3) {
         throw new Error("Admin access required");
@@ -445,5 +442,4 @@ export const systemRouter = t.router({
         total: mockAuditLogs.length,
         hasMore: mockAuditLogs.length >= limit,
       };
-    }),
-});
+    }),);

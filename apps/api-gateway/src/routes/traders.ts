@@ -1,11 +1,11 @@
-import { z } from 'zod';
-import { t, protectedProcedure } from '@hyperdash/contracts';
+import { protectedProcedure, t } from '@hyperdash/contracts';
 import {
+  schemas,
+  TraderPerformanceParamsSchema,
   TraderProfileParamsSchema,
   TraderRankingsParamsSchema,
-  TraderPerformanceParamsSchema,
-  schemas
 } from '@hyperdash/shared-types';
+import { z } from 'zod';
 
 /**
  * Trader Analytics Router
@@ -15,17 +15,19 @@ import {
 export const tradersRouter = t.router({
   // Get trader profile by ID or address
   profile: t.procedure
-    .input(z.object({
-      traderId: z.string().optional(),
-      address: z.string().optional(),
-      includePositions: z.boolean().default(false),
-      includeHistory: z.boolean().default(false),
-    }))
+    .input(
+      z.object({
+        traderId: z.string().optional(),
+        address: z.string().optional(),
+        includePositions: z.boolean().default(false),
+        includeHistory: z.boolean().default(false),
+      }),
+    )
     .query(async ({ input, ctx }) => {
       const { traderId, address, includePositions, includeHistory } = input;
 
       if (!traderId && !address) {
-        throw new Error("Either traderId or address must be provided");
+        throw new Error('Either traderId or address must be provided');
       }
 
       // Implementation will query PostgreSQL for trader profile
@@ -39,7 +41,7 @@ export const tradersRouter = t.router({
         publicScore: 85.5,
         isActive: true,
         metrics: {
-          totalPnl: 125000.50,
+          totalPnl: 125000.5,
           totalVolume: 5000000,
           winRate: 0.68,
           sharpeRatio: 1.45,
@@ -81,15 +83,17 @@ export const tradersRouter = t.router({
 
   // Get trader rankings with various sorting options
   rankings: t.procedure
-    .input(z.object({
-      metric: z.enum(['pnl', 'volume', 'winRate', 'sharpeRatio', 'followers']).default('pnl'),
-      timeframe: z.enum(['1d', '7d', '30d', '90d', 'all']).default('30d'),
-      limit: z.number().min(1).max(100).default(20),
-      offset: z.number().min(0).default(0),
-      symbols: z.array(z.string()).optional(),
-      minVolume: z.number().optional(),
-      verified: z.boolean().optional(),
-    }))
+    .input(
+      z.object({
+        metric: z.enum(['pnl', 'volume', 'winRate', 'sharpeRatio', 'followers']).default('pnl'),
+        timeframe: z.enum(['1d', '7d', '30d', '90d', 'all']).default('30d'),
+        limit: z.number().min(1).max(100).default(20),
+        offset: z.number().min(0).default(0),
+        symbols: z.array(z.string()).optional(),
+        minVolume: z.number().optional(),
+        verified: z.boolean().optional(),
+      }),
+    )
     .query(async ({ input, ctx }) => {
       const { metric, timeframe, limit, offset, symbols, minVolume, verified } = input;
 
@@ -113,17 +117,19 @@ export const tradersRouter = t.router({
         lastTradeTime: new Date(Date.now() - Math.random() * 86400000).toISOString(),
       }));
 
-      return mockRankings.map(trader => schemas.TraderRanking.parse(trader));
+      return mockRankings.map((trader) => schemas.TraderRanking.parse(trader));
     }),
 
   // Get detailed trader performance analytics
   performance: t.procedure
-    .input(z.object({
-      traderId: z.string(),
-      timeframe: z.enum(['1d', '7d', '30d', '90d']).default('30d'),
-      includeBreakdown: z.boolean().default(true),
-      includeRiskMetrics: z.boolean().default(true),
-    }))
+    .input(
+      z.object({
+        traderId: z.string(),
+        timeframe: z.enum(['1d', '7d', '30d', '90d']).default('30d'),
+        includeBreakdown: z.boolean().default(true),
+        includeRiskMetrics: z.boolean().default(true),
+      }),
+    )
     .query(async ({ input, ctx }) => {
       const { traderId, timeframe, includeBreakdown, includeRiskMetrics } = input;
 
@@ -185,11 +191,13 @@ export const tradersRouter = t.router({
 
   // Get current positions for a trader
   positions: t.procedure
-    .input(z.object({
-      traderId: z.string(),
-      includeHistory: z.boolean().default(false),
-      limit: z.number().min(1).max(100).default(50),
-    }))
+    .input(
+      z.object({
+        traderId: z.string(),
+        includeHistory: z.boolean().default(false),
+        limit: z.number().min(1).max(100).default(50),
+      }),
+    )
     .query(async ({ input, ctx }) => {
       const { traderId, includeHistory, limit } = input;
 
@@ -209,17 +217,19 @@ export const tradersRouter = t.router({
         lastUpdated: new Date(Date.now() - Math.random() * 3600000).toISOString(),
       }));
 
-      return mockPositions.map(position => schemas.TraderPosition.parse(position));
+      return mockPositions.map((position) => schemas.TraderPosition.parse(position));
     }),
 
   // Get trader's recent trading history
   history: t.procedure
-    .input(z.object({
-      traderId: z.string(),
-      limit: z.number().min(1).max(100).default(20),
-      offset: z.number().min(0).default(0),
-      symbol: z.string().optional(),
-    }))
+    .input(
+      z.object({
+        traderId: z.string(),
+        limit: z.number().min(1).max(100).default(20),
+        offset: z.number().min(0).default(0),
+        symbol: z.string().optional(),
+      }),
+    )
     .query(async ({ input, ctx }) => {
       const { traderId, limit, offset, symbol } = input;
 
@@ -237,20 +247,22 @@ export const tradersRouter = t.router({
         leverage: Math.random() * 4 + 1,
       }));
 
-      return mockHistory.map(trade => schemas.TraderTrade.parse(trade));
+      return mockHistory.map((trade) => schemas.TraderTrade.parse(trade));
     }),
 
   // Search traders by various criteria
   search: t.procedure
-    .input(z.object({
-      query: z.string().optional(),
-      tags: z.array(z.string()).optional(),
-      minScore: z.number().min(0).max(100).optional(),
-      maxScore: z.number().min(0).max(100).optional(),
-      minFollowers: z.number().optional(),
-      verified: z.boolean().optional(),
-      limit: z.number().min(1).max(50).default(20),
-    }))
+    .input(
+      z.object({
+        query: z.string().optional(),
+        tags: z.array(z.string()).optional(),
+        minScore: z.number().min(0).max(100).optional(),
+        maxScore: z.number().min(0).max(100).optional(),
+        minFollowers: z.number().optional(),
+        verified: z.boolean().optional(),
+        limit: z.number().min(1).max(50).default(20),
+      }),
+    )
     .query(async ({ input, ctx }) => {
       const { query, tags, minScore, maxScore, minFollowers, verified, limit } = input;
 
@@ -260,22 +272,25 @@ export const tradersRouter = t.router({
         traderId: `trader_search_${i + 1}`,
         alias: `${query || 'Trader'}${i + 1}`,
         address: `0x${String(i + 1).padStart(40, '0')}`,
-        publicScore: (minScore || 70) + Math.random() * (maxScore ? maxScore - (minScore || 70) : 20),
+        publicScore:
+          (minScore || 70) + Math.random() * (maxScore ? maxScore - (minScore || 70) : 20),
         followers: (minFollowers || 10) + Math.floor(Math.random() * 500),
         tags: tags || ['momentum', 'swing', 'scalping'].slice(0, Math.floor(Math.random() * 3) + 1),
         isActive: true,
         lastActive: new Date(Date.now() - Math.random() * 86400000).toISOString(),
       }));
 
-      return mockResults.map(trader => schemas.TraderSearchResult.parse(trader));
+      return mockResults.map((trader) => schemas.TraderSearchResult.parse(trader));
     }),
 
   // Follow/unfollow traders (protected endpoint)
   follow: protectedProcedure
-    .input(z.object({
-      traderId: z.string(),
-      action: z.enum(['follow', 'unfollow']),
-    }))
+    .input(
+      z.object({
+        traderId: z.string(),
+        action: z.enum(['follow', 'unfollow']),
+      }),
+    )
     .mutation(async ({ input, ctx }) => {
       const { traderId, action } = input;
       const userId = ctx.user!.userId;

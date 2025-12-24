@@ -90,14 +90,25 @@ export const config = {
     premium: {
       name: 'Premium',
       price: 29.99,
-      features: ['Real-time market data', 'Advanced analytics', 'Copy trading (3 traders)', 'Email support'],
+      features: [
+        'Real-time market data',
+        'Advanced analytics',
+        'Copy trading (3 traders)',
+        'Email support',
+      ],
       apiCallsPerMonth: 10000,
       maxCopies: 3,
     },
     enterprise: {
       name: 'Enterprise',
       price: 99.99,
-      features: ['Real-time market data', 'Advanced analytics', 'Copy trading (unlimited)', 'Priority support', 'Custom features'],
+      features: [
+        'Real-time market data',
+        'Advanced analytics',
+        'Copy trading (unlimited)',
+        'Priority support',
+        'Custom features',
+      ],
       apiCallsPerMonth: 100000,
       maxCopies: -1, // unlimited
     },

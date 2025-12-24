@@ -1,6 +1,6 @@
 import { config } from './config';
-import { HyperliquidDataCollector } from './services/hyperliquid-collector';
 import { ClickHouseWriter } from './services/clickhouse-writer';
+import { HyperliquidDataCollector } from './services/hyperliquid-collector';
 import { KafkaProducer } from './services/kafka-producer';
 import { logger } from './utils/logger';
 
@@ -13,7 +13,7 @@ async function main() {
     const clickhouseWriter = new ClickHouseWriter();
     const hyperliquidCollector = new HyperliquidDataCollector({
       kafkaProducer,
-      clickhouseWriter
+      clickhouseWriter,
     });
 
     // Start data collection
@@ -32,14 +32,13 @@ async function main() {
 
     process.on('SIGINT', shutdown);
     process.on('SIGTERM', shutdown);
-
   } catch (error) {
     logger.error('Failed to start data ingestion service:', error);
     process.exit(1);
   }
 }
 
-main().catch(error => {
+main().catch((error) => {
   logger.error('Fatal error:', error);
   process.exit(1);
 });

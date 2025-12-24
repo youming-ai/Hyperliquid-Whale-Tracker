@@ -1,10 +1,10 @@
-import WebSocket from 'ws';
 import axios from 'axios';
 import { EventEmitter } from 'events';
-import { logger } from '../utils/logger';
+import WebSocket from 'ws';
 import { config } from '../config';
-import { KafkaProducer } from './kafka-producer';
-import { ClickHouseWriter } from './clickhouse-writer';
+import { logger } from '../utils/logger';
+import type { ClickHouseWriter } from './clickhouse-writer';
+import type { KafkaProducer } from './kafka-producer';
 
 interface HyperliquidTrade {
   side: 'B' | 'S';
@@ -141,22 +141,28 @@ export class HyperliquidDataCollector extends EventEmitter {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
 
     // Subscribe to all trades
-    this.ws.send(JSON.stringify({
-      method: 'subscribe',
-      stream: 'trades'
-    }));
+    this.ws.send(
+      JSON.stringify({
+        method: 'subscribe',
+        stream: 'trades',
+      }),
+    );
 
     // Subscribe to all quotes
-    this.ws.send(JSON.stringify({
-      method: 'subscribe',
-      stream: 'quote'
-    }));
+    this.ws.send(
+      JSON.stringify({
+        method: 'subscribe',
+        stream: 'quote',
+      }),
+    );
 
     // Subscribe to funding rates
-    this.ws.send(JSON.stringify({
-      method: 'subscribe',
-      stream: 'funding'
-    }));
+    this.ws.send(
+      JSON.stringify({
+        method: 'subscribe',
+        stream: 'funding',
+      }),
+    );
 
     logger.info('Subscribed to Hyperliquid data streams');
   }
@@ -190,7 +196,7 @@ export class HyperliquidDataCollector extends EventEmitter {
   }
 
   private handleTrades(trades: HyperliquidTrade[]): void {
-    trades.forEach(trade => {
+    trades.forEach((trade) => {
       const processedTrade = {
         symbol: trade.coin,
         side: trade.side === 'B' ? 'buy' : 'sell',
@@ -209,7 +215,7 @@ export class HyperliquidDataCollector extends EventEmitter {
   }
 
   private handleQuotes(quotes: any[]): void {
-    quotes.forEach(quote => {
+    quotes.forEach((quote) => {
       const processedQuote = {
         symbol: quote.coin,
         bid: parseFloat(quote.bidPx),
@@ -228,7 +234,7 @@ export class HyperliquidDataCollector extends EventEmitter {
   }
 
   private handleFunding(fundingData: HyperliquidFunding[]): void {
-    fundingData.forEach(funding => {
+    fundingData.forEach((funding) => {
       const processedFunding = {
         symbol: funding.coin,
         fundingRate: parseFloat(funding.fundingRate),
@@ -289,7 +295,7 @@ export class HyperliquidDataCollector extends EventEmitter {
       const response = await axios.get(`${config.hyperliquid.apiUrl}/openInterest`);
       const openInterestData: HyperliquidOpenInterest[] = response.data;
 
-      const processed = openInterestData.map(oi => ({
+      const processed = openInterestData.map((oi) => ({
         symbol: oi.coin,
         openInterest: parseFloat(oi.openInterest),
         timestamp: new Date(oi.time),
@@ -300,7 +306,6 @@ export class HyperliquidDataCollector extends EventEmitter {
 
       // Send to ClickHouse
       await this.services.clickhouseWriter.writeOpenInterest(processed);
-
     } catch (error) {
       logger.error('Failed to fetch open interest:', error);
     }
@@ -311,7 +316,7 @@ export class HyperliquidDataCollector extends EventEmitter {
       const response = await axios.get(`${config.hyperliquid.apiUrl}/liquidations`);
       const liquidationData: HyperliquidLiquidation[] = response.data;
 
-      const processed = liquidationData.map(liq => ({
+      const processed = liquidationData.map((liq) => ({
         symbol: liq.coin,
         side: liq.side === 'B' ? 'buy' : 'sell',
         price: parseFloat(liq.px),
@@ -325,7 +330,6 @@ export class HyperliquidDataCollector extends EventEmitter {
 
       // Send to ClickHouse
       await this.services.clickhouseWriter.writeLiquidations(processed);
-
     } catch (error) {
       logger.error('Failed to fetch liquidations:', error);
     }

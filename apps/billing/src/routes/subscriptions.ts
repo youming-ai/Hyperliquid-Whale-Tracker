@@ -1,11 +1,13 @@
 import { Router } from 'express';
+import {
+  cancelSubscription,
+  createSubscription,
+  getSubscription,
+  getSubscriptionPlans,
+  reactivateSubscription,
+  updateSubscription,
+} from '../controllers/subscriptionController';
 import { asyncHandler } from '../middleware/errorHandler';
-import { getSubscription } from '../controllers/subscriptionController';
-import { createSubscription } from '../controllers/subscriptionController';
-import { updateSubscription } from '../controllers/subscriptionController';
-import { cancelSubscription } from '../controllers/subscriptionController';
-import { getSubscriptionPlans } from '../controllers/subscriptionController';
-import { reactivateSubscription } from '../controllers/subscriptionController';
 
 const router = Router();
 

@@ -21,8 +21,8 @@ export const TOPICS: Record<string, TopicConfig> = {
       'cleanup.policy': 'delete',
       'retention.ms': '3600000', // 1 hour
       'segment.ms': '300000', // 5 minutes
-      'compression.type': 'lz4'
-    }
+      'compression.type': 'lz4',
+    },
   },
 
   MARKET_TRADES: {
@@ -33,8 +33,8 @@ export const TOPICS: Record<string, TopicConfig> = {
       'cleanup.policy': 'delete',
       'retention.ms': '86400000', // 24 hours
       'segment.ms': '600000', // 10 minutes
-      'compression.type': 'lz4'
-    }
+      'compression.type': 'lz4',
+    },
   },
 
   MARKET_OHLCV: {
@@ -46,8 +46,8 @@ export const TOPICS: Record<string, TopicConfig> = {
       'retention.ms': '2592000000', // 30 days
       'segment.ms': '3600000', // 1 hour
       'compression.type': 'zstd',
-      'min.cleanable.dirty.ratio': '0.01'
-    }
+      'min.cleanable.dirty.ratio': '0.01',
+    },
   },
 
   // Trader Activity Topics
@@ -59,8 +59,8 @@ export const TOPICS: Record<string, TopicConfig> = {
       'cleanup.policy': 'compact,delete',
       'retention.ms': '604800000', // 7 days
       'segment.ms': '1800000', // 30 minutes
-      'compression.type': 'lz4'
-    }
+      'compression.type': 'lz4',
+    },
   },
 
   TRADER_PROFIT_LOSS: {
@@ -71,8 +71,8 @@ export const TOPICS: Record<string, TopicConfig> = {
       'cleanup.policy': 'compact,delete',
       'retention.ms': '2592000000', // 30 days
       'segment.ms': '3600000', // 1 hour
-      'compression.type': 'zstd'
-    }
+      'compression.type': 'zstd',
+    },
   },
 
   TRADER_RANKINGS: {
@@ -82,8 +82,8 @@ export const TOPICS: Record<string, TopicConfig> = {
     config: {
       'cleanup.policy': 'compact',
       'compression.type': 'zstd',
-      'max.compaction.lag.ms': '3600000' // 1 hour
-    }
+      'max.compaction.lag.ms': '3600000', // 1 hour
+    },
   },
 
   // Copy Trading Topics
@@ -95,8 +95,8 @@ export const TOPICS: Record<string, TopicConfig> = {
       'cleanup.policy': 'delete',
       'retention.ms': '2592000000', // 30 days
       'segment.ms': '1800000', // 30 minutes
-      'compression.type': 'lz4'
-    }
+      'compression.type': 'lz4',
+    },
   },
 
   COPY_PERFORMANCE: {
@@ -107,8 +107,8 @@ export const TOPICS: Record<string, TopicConfig> = {
       'cleanup.policy': 'compact,delete',
       'retention.ms': '2592000000', // 30 days
       'segment.ms': '3600000', // 1 hour
-      'compression.type': 'zstd'
-    }
+      'compression.type': 'zstd',
+    },
   },
 
   COPY_ALIGNMENT: {
@@ -119,8 +119,8 @@ export const TOPICS: Record<string, TopicConfig> = {
       'cleanup.policy': 'delete',
       'retention.ms': '604800000', // 7 days
       'segment.ms': '1800000', // 30 minutes
-      'compression.type': 'lz4'
-    }
+      'compression.type': 'lz4',
+    },
   },
 
   // User Activity Topics
@@ -132,8 +132,8 @@ export const TOPICS: Record<string, TopicConfig> = {
       'cleanup.policy': 'delete',
       'retention.ms': '2592000000', // 30 days
       'segment.ms': '3600000', // 1 hour
-      'compression.type': 'lz4'
-    }
+      'compression.type': 'lz4',
+    },
   },
 
   USER_ALERTS: {
@@ -144,8 +144,8 @@ export const TOPICS: Record<string, TopicConfig> = {
       'cleanup.policy': 'delete',
       'retention.ms': '604800000', // 7 days
       'segment.ms': '1800000', // 30 minutes
-      'compression.type': 'lz4'
-    }
+      'compression.type': 'lz4',
+    },
   },
 
   USER_NOTIFICATIONS: {
@@ -156,8 +156,8 @@ export const TOPICS: Record<string, TopicConfig> = {
       'cleanup.policy': 'delete',
       'retention.ms': '259200000', // 3 days
       'segment.ms': '900000', // 15 minutes
-      'compression.type': 'lz4'
-    }
+      'compression.type': 'lz4',
+    },
   },
 
   // System Events Topics
@@ -169,8 +169,8 @@ export const TOPICS: Record<string, TopicConfig> = {
       'cleanup.policy': 'delete',
       'retention.ms': '86400000', // 24 hours
       'segment.ms': '300000', // 5 minutes
-      'compression.type': 'lz4'
-    }
+      'compression.type': 'lz4',
+    },
   },
 
   API_METRICS: {
@@ -181,8 +181,8 @@ export const TOPICS: Record<string, TopicConfig> = {
       'cleanup.policy': 'delete',
       'retention.ms': '86400000', // 24 hours
       'segment.ms': '300000', // 5 minutes
-      'compression.type': 'lz4'
-    }
+      'compression.type': 'lz4',
+    },
   },
 
   ERROR_EVENTS: {
@@ -193,8 +193,8 @@ export const TOPICS: Record<string, TopicConfig> = {
       'cleanup.policy': 'delete',
       'retention.ms': '259200000', // 3 days
       'segment.ms': '900000', // 15 minutes
-      'compression.type': 'lz4'
-    }
+      'compression.type': 'lz4',
+    },
   },
 
   // External Data Topics
@@ -206,8 +206,8 @@ export const TOPICS: Record<string, TopicConfig> = {
       'cleanup.policy': 'delete',
       'retention.ms': '86400000', // 24 hours
       'segment.ms': '600000', // 10 minutes
-      'compression.type': 'lz4'
-    }
+      'compression.type': 'lz4',
+    },
   },
 
   ONCHAIN_EVENTS: {
@@ -218,8 +218,8 @@ export const TOPICS: Record<string, TopicConfig> = {
       'cleanup.policy': 'delete',
       'retention.ms': '604800000', // 7 days
       'segment.ms': '1800000', // 30 minutes
-      'compression.type': 'lz4'
-    }
+      'compression.type': 'lz4',
+    },
   },
 
   // Analytics Topics
@@ -231,8 +231,8 @@ export const TOPICS: Record<string, TopicConfig> = {
       'cleanup.policy': 'delete',
       'retention.ms': '86400000', // 24 hours
       'segment.ms': '600000', // 10 minutes
-      'compression.type': 'lz4'
-    }
+      'compression.type': 'lz4',
+    },
   },
 
   // Dead Letter Queue
@@ -244,9 +244,9 @@ export const TOPICS: Record<string, TopicConfig> = {
       'cleanup.policy': 'delete',
       'retention.ms': '2592000000', // 30 days
       'segment.ms': '3600000', // 1 hour
-      'compression.type': 'lz4'
-    }
-  }
+      'compression.type': 'lz4',
+    },
+  },
 };
 
 // Topic schemas (Avro format)
@@ -268,7 +268,7 @@ export const TOPIC_SCHEMAS: Record<string, TopicSchemas> = {
           {"name": "source", "type": "string"}
         ]
       }
-    `
+    `,
   },
 
   'market-trades': {
@@ -289,7 +289,7 @@ export const TOPIC_SCHEMAS: Record<string, TopicSchemas> = {
           {"name": "seller", "type": ["null", "string"], "default": null}
         ]
       }
-    `
+    `,
   },
 
   'trader-position-updates': {
@@ -313,7 +313,7 @@ export const TOPIC_SCHEMAS: Record<string, TopicSchemas> = {
           {"name": "confidence_score", "type": "double"}
         ]
       }
-    `
+    `,
   },
 
   'copy-trade-events': {
@@ -338,7 +338,7 @@ export const TOPIC_SCHEMAS: Record<string, TopicSchemas> = {
           {"name": "delay_ms", "type": "long"}
         ]
       }
-    `
+    `,
   },
 
   'user-events': {
@@ -358,7 +358,7 @@ export const TOPIC_SCHEMAS: Record<string, TopicSchemas> = {
           {"name": "user_agent", "type": ["null", "string"], "default": null}
         ]
       }
-    `
+    `,
   },
 
   'system-metrics': {
@@ -380,7 +380,7 @@ export const TOPIC_SCHEMAS: Record<string, TopicSchemas> = {
           {"name": "throughput", "type": "double"}
         ]
       }
-    `
+    `,
   },
 
   'error-events': {
@@ -401,7 +401,7 @@ export const TOPIC_SCHEMAS: Record<string, TopicSchemas> = {
           {"name": "context", "type": {"type": "map", "values": "string"}}
         ]
       }
-    `
+    `,
   },
 
   'social-sentiment': {
@@ -423,7 +423,7 @@ export const TOPIC_SCHEMAS: Record<string, TopicSchemas> = {
           {"name": "timestamp", "type": "long"}
         ]
       }
-    `
+    `,
   },
 
   'onchain-events': {
@@ -447,8 +447,8 @@ export const TOPIC_SCHEMAS: Record<string, TopicSchemas> = {
           {"name": "gas_price", "type": "double"}
         ]
       }
-    `
-  }
+    `,
+  },
 };
 
 // Consumer groups
@@ -460,41 +460,16 @@ export const CONSUMER_GROUPS = {
   ANALYTICS_SERVICE: 'analytics-service',
   MONITORING_SERVICE: 'monitoring-service',
   DATA_INGESTION: 'data-ingestion',
-  ERROR_PROCESSOR: 'error-processor'
+  ERROR_PROCESSOR: 'error-processor',
 };
 
 // Topic partitions by service for distribution
 export const TOPIC_ASSIGNMENTS = {
-  marketDataService: [
-    'market-price-updates',
-    'market-trades',
-    'market-ohlcv'
-  ],
-  traderAnalyticsService: [
-    'trader-position-updates',
-    'trader-profit-loss',
-    'trader-rankings'
-  ],
-  copyTradingService: [
-    'copy-trade-events',
-    'copy-performance',
-    'copy-alignment'
-  ],
-  userService: [
-    'user-events',
-    'user-alerts',
-    'user-notifications'
-  ],
-  systemService: [
-    'system-metrics',
-    'api-metrics',
-    'error-events'
-  ],
-  externalDataService: [
-    'social-sentiment',
-    'onchain-events'
-  ],
-  analyticsService: [
-    'analytics-events'
-  ]
+  marketDataService: ['market-price-updates', 'market-trades', 'market-ohlcv'],
+  traderAnalyticsService: ['trader-position-updates', 'trader-profit-loss', 'trader-rankings'],
+  copyTradingService: ['copy-trade-events', 'copy-performance', 'copy-alignment'],
+  userService: ['user-events', 'user-alerts', 'user-notifications'],
+  systemService: ['system-metrics', 'api-metrics', 'error-events'],
+  externalDataService: ['social-sentiment', 'onchain-events'],
+  analyticsService: ['analytics-events'],
 };

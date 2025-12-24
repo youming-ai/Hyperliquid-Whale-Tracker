@@ -1,13 +1,13 @@
-import express from 'express';
 import cors from 'cors';
+import express from 'express';
 import stripe from 'stripe';
 import { config } from './config';
-import { logger } from './utils/logger';
+import { errorHandler } from './middleware/errorHandler';
+import { requestLogger } from './middleware/requestLogger';
 import { billingRoutes } from './routes/billing';
 import { subscriptionRoutes } from './routes/subscriptions';
 import { webhookRoutes } from './routes/webhooks';
-import { errorHandler } from './middleware/errorHandler';
-import { requestLogger } from './middleware/requestLogger';
+import { logger } from './utils/logger';
 
 export class BillingServer {
   private app: express.Application;
@@ -24,10 +24,12 @@ export class BillingServer {
 
   private setupMiddleware(): void {
     // CORS configuration
-    this.app.use(cors({
-      origin: config.corsOrigins,
-      credentials: true,
-    }));
+    this.app.use(
+      cors({
+        origin: config.corsOrigins,
+        credentials: true,
+      }),
+    );
 
     // Body parsing (important for Stripe webhooks)
     this.app.use('/api/webhooks/stripe', express.raw({ type: 'application/json' }));
@@ -102,7 +104,6 @@ export class BillingServer {
         // Graceful shutdown
         process.on('SIGTERM', () => this.stop());
         process.on('SIGINT', () => this.stop());
-
       } catch (error) {
         reject(error);
       }

@@ -1,5 +1,4 @@
-import { getRedisConnection } from './client';
-import { Redis } from './client';
+import { getRedisConnection, type Redis } from './client';
 
 export interface CacheOptions {
   ttl?: number; // Time to live in seconds
@@ -23,11 +22,7 @@ export class CacheManager {
   }
 
   // Set a value in cache
-  async set<T>(
-    key: string,
-    value: T,
-    options: CacheOptions = {}
-  ): Promise<void> {
+  async set<T>(key: string, value: T, options: CacheOptions = {}): Promise<void> {
     const { ttl = this.defaultTTL, tags = [], compress = false } = options;
 
     try {
@@ -39,7 +34,7 @@ export class CacheManager {
 
       // Add to tag sets for invalidation
       if (tags.length > 0) {
-        const tagSets = tags.map(tag => `tag:${tag}`);
+        const tagSets = tags.map((tag) => `tag:${tag}`);
         await this.redis.getIORedisClient().sadd(...tagSets, key);
 
         // Set TTL for tag sets as well
@@ -142,13 +137,7 @@ export class CacheManager {
   async setIfNotExists<T>(key: string, value: T, ttl: number): Promise<boolean> {
     try {
       const serializedValue = JSON.stringify(value);
-      const result = await this.redis.getIORedisClient().set(
-        key,
-        serializedValue,
-        'EX',
-        ttl,
-        'NX'
-      );
+      const result = await this.redis.getIORedisClient().set(key, serializedValue, 'EX', ttl, 'NX');
 
       return result === 'OK';
     } catch (error) {
@@ -161,7 +150,7 @@ export class CacheManager {
   async getOrSet<T>(
     key: string,
     factory: () => Promise<T>,
-    options: CacheOptions = {}
+    options: CacheOptions = {},
   ): Promise<T> {
     // Try to get from cache first
     const cached = await this.get<T>(key);
@@ -269,29 +258,31 @@ export class CacheFactory {
   static getInstance(ttl: number = 300): CacheManager {
     const key = `ttl:${ttl}`;
 
-    if (!this.instances.has(key)) {
-      this.instances.set(key, new CacheManager(ttl));
+    if (!CacheFactory.instances.has(key)) {
+      CacheFactory.instances.set(key, new CacheManager(ttl));
     }
 
-    return this.instances.get(key)!;
+    return CacheFactory.instances.get(key)!;
   }
 
   static getShortLivedCache(): CacheManager {
-    return this.getInstance(60); // 1 minute
+    return CacheFactory.getInstance(60); // 1 minute
   }
 
   static getMediumLivedCache(): CacheManager {
-    return this.getInstance(300); // 5 minutes
+    return CacheFactory.getInstance(300); // 5 minutes
   }
 
   static getLongLivedCache(): CacheManager {
-    return this.getInstance(3600); // 1 hour
+    return CacheFactory.getInstance(3600); // 1 hour
   }
 }
 
 // Decorator for memoizing functions
-export function Memoize(options: CacheOptions & { keyGenerator?: (...args: any[]) => string } = {}) {
-  return function (target: any, propertyName: string, descriptor: PropertyDescriptor) {
+export function Memoize(
+  options: CacheOptions & { keyGenerator?: (...args: any[]) => string } = {},
+) {
+  return (target: any, propertyName: string, descriptor: PropertyDescriptor) => {
     const method = descriptor.value;
     const cache = CacheFactory.getMediumLivedCache();
     const { keyGenerator, ...cacheOptions } = options;

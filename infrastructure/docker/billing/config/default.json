@@ -29,12 +29,7 @@
         "name": "Freemium",
         "price": 0,
         "interval": "month",
-        "features": [
-          "market-data-basic",
-          "trader-profiles",
-          "5-strategies",
-          "basic-analytics"
-        ],
+        "features": ["market-data-basic", "trader-profiles", "5-strategies", "basic-analytics"],
         "limits": {
           "apiCallsPerMonth": 1000,
           "symbols": 10,

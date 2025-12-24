@@ -1,6 +1,6 @@
-import { z } from 'zod';
-import { t, protectedProcedure } from '@hyperdash/contracts';
+import { protectedProcedure, t } from '@hyperdash/contracts';
 import { schemas } from '@hyperdash/shared-types';
+import { z } from 'zod';
 
 /**
  * Analytics Router
@@ -10,10 +10,12 @@ import { schemas } from '@hyperdash/shared-types';
 export const analyticsRouter = t.router({
   // Platform overview analytics
   platform: t.procedure
-    .input(z.object({
-      timeframe: z.enum(['1d', '7d', '30d', '90d']).default('30d'),
-      granularity: z.enum(['hour', 'day']).default('day'),
-    }))
+    .input(
+      z.object({
+        timeframe: z.enum(['1d', '7d', '30d', '90d']).default('30d'),
+        granularity: z.enum(['hour', 'day']).default('day'),
+      }),
+    )
     .query(async ({ input, ctx }) => {
       const { timeframe, granularity } = input;
 
@@ -61,11 +63,15 @@ export const analyticsRouter = t.router({
 
   // Market analytics and insights
   market: t.procedure
-    .input(z.object({
-      symbols: z.array(z.string()).optional(),
-      timeframe: z.enum(['1d', '7d', '30d', '90d']).default('7d'),
-      metrics: z.array(z.enum(['volume', 'volatility', 'open_interest', 'funding_rate', 'liquidations'])).default(['volume', 'volatility']),
-    }))
+    .input(
+      z.object({
+        symbols: z.array(z.string()).optional(),
+        timeframe: z.enum(['1d', '7d', '30d', '90d']).default('7d'),
+        metrics: z
+          .array(z.enum(['volume', 'volatility', 'open_interest', 'funding_rate', 'liquidations']))
+          .default(['volume', 'volatility']),
+      }),
+    )
     .query(async ({ input, ctx }) => {
       const { symbols, timeframe, metrics } = input;
 
@@ -84,7 +90,7 @@ export const analyticsRouter = t.router({
           totalLiquidations: 12500000,
           avgFundingRate: 0.0001,
         },
-        symbolMetrics: targetSymbols.map(symbol => ({
+        symbolMetrics: targetSymbols.map((symbol) => ({
           symbol,
           volume: Math.random() * 500000000 + 100000000,
           volumeChange: (Math.random() - 0.5) * 0.3,
@@ -132,11 +138,15 @@ export const analyticsRouter = t.router({
 
   // Trader analytics and performance distribution
   traders: t.procedure
-    .input(z.object({
-      timeframe: z.enum(['1d', '7d', '30d', '90d']).default('30d'),
-      segment: z.enum(['all', 'top', 'mid', 'bottom']).default('all'),
-      metrics: z.array(z.enum(['pnl', 'volume', 'win_rate', 'followers', 'alignment'])).default(['pnl', 'volume']),
-    }))
+    .input(
+      z.object({
+        timeframe: z.enum(['1d', '7d', '30d', '90d']).default('30d'),
+        segment: z.enum(['all', 'top', 'mid', 'bottom']).default('all'),
+        metrics: z
+          .array(z.enum(['pnl', 'volume', 'win_rate', 'followers', 'alignment']))
+          .default(['pnl', 'volume']),
+      }),
+    )
     .query(async ({ input, ctx }) => {
       const { timeframe, segment, metrics } = input;
 
@@ -179,12 +189,38 @@ export const analyticsRouter = t.router({
         },
         performance: {
           topPerformers: [
-            { traderId: 'trader_1', alias: 'AlphaMaster', pnl: 485000, volume: 12500000, winRate: 0.72, followers: 842 },
-            { traderId: 'trader_2', alias: 'WhaleHunter', pnl: 382000, volume: 9800000, winRate: 0.68, followers: 623 },
-            { traderId: 'trader_3', alias: 'PrecisionTrader', pnl: 298000, volume: 7200000, winRate: 0.81, followers: 445 },
+            {
+              traderId: 'trader_1',
+              alias: 'AlphaMaster',
+              pnl: 485000,
+              volume: 12500000,
+              winRate: 0.72,
+              followers: 842,
+            },
+            {
+              traderId: 'trader_2',
+              alias: 'WhaleHunter',
+              pnl: 382000,
+              volume: 9800000,
+              winRate: 0.68,
+              followers: 623,
+            },
+            {
+              traderId: 'trader_3',
+              alias: 'PrecisionTrader',
+              pnl: 298000,
+              volume: 7200000,
+              winRate: 0.81,
+              followers: 445,
+            },
           ],
           mostFollowed: [
-            { traderId: 'trader_4', alias: 'SteadyGrowth', followers: 1245, avgMonthlyReturn: 0.085 },
+            {
+              traderId: 'trader_4',
+              alias: 'SteadyGrowth',
+              followers: 1245,
+              avgMonthlyReturn: 0.085,
+            },
             { traderId: 'trader_5', alias: 'RiskMaster', followers: 1087, avgMonthlyReturn: 0.067 },
             { traderId: 'trader_6', alias: 'VolumeKing', followers: 962, avgMonthlyReturn: 0.092 },
           ],
@@ -207,11 +243,13 @@ export const analyticsRouter = t.router({
 
   // Copy trading analytics
   copy: t.procedure
-    .input(z.object({
-      timeframe: z.enum(['1d', '7d', '30d', '90d']).default('30d'),
-      includePerformance: z.boolean().default(true),
-      includeRisk: z.boolean().default(true),
-    }))
+    .input(
+      z.object({
+        timeframe: z.enum(['1d', '7d', '30d', '90d']).default('30d'),
+        includePerformance: z.boolean().default(true),
+        includeRisk: z.boolean().default(true),
+      }),
+    )
     .query(async ({ input, ctx }) => {
       const { timeframe, includePerformance, includeRisk } = input;
 
@@ -237,40 +275,78 @@ export const analyticsRouter = t.router({
             totalPnl: 1200000 + Math.random() * 800000,
           })),
           topPerformingStrategies: [
-            { strategyId: 'strategy_1', userId: 'user_1', return: 0.185, volume: 2500000, alignmentRate: 98.2 },
-            { strategyId: 'strategy_2', userId: 'user_2', return: 0.142, volume: 1800000, alignmentRate: 96.8 },
-            { strategyId: 'strategy_3', userId: 'user_3', return: 0.128, volume: 2200000, alignmentRate: 95.5 },
+            {
+              strategyId: 'strategy_1',
+              userId: 'user_1',
+              return: 0.185,
+              volume: 2500000,
+              alignmentRate: 98.2,
+            },
+            {
+              strategyId: 'strategy_2',
+              userId: 'user_2',
+              return: 0.142,
+              volume: 1800000,
+              alignmentRate: 96.8,
+            },
+            {
+              strategyId: 'strategy_3',
+              userId: 'user_3',
+              return: 0.128,
+              volume: 2200000,
+              alignmentRate: 95.5,
+            },
           ],
           popularTraderPairs: [
-            { traderId: 'trader_1', alias: 'AlphaMaster', followers: 842, copiedVolume: 125000000, avgReturn: 0.145 },
-            { traderId: 'trader_2', alias: 'WhaleHunter', followers: 623, copiedVolume: 98000000, avgReturn: 0.122 },
-            { traderId: 'trader_3', alias: 'PrecisionTrader', followers: 445, copiedVolume: 72000000, avgReturn: 0.138 },
+            {
+              traderId: 'trader_1',
+              alias: 'AlphaMaster',
+              followers: 842,
+              copiedVolume: 125000000,
+              avgReturn: 0.145,
+            },
+            {
+              traderId: 'trader_2',
+              alias: 'WhaleHunter',
+              followers: 623,
+              copiedVolume: 98000000,
+              avgReturn: 0.122,
+            },
+            {
+              traderId: 'trader_3',
+              alias: 'PrecisionTrader',
+              followers: 445,
+              copiedVolume: 72000000,
+              avgReturn: 0.138,
+            },
           ],
         },
-        riskMetrics: includePerformance ? {
-          maxDrawdownDistribution: [
-            { range: '< 5%', count: 1520, percentage: 70.7 },
-            { range: '5% - 10%', count: 382, percentage: 17.8 },
-            { range: '10% - 20%', count: 187, percentage: 8.7 },
-            { range: '> 20%', count: 61, percentage: 2.8 },
-          ],
-          leverageUsage: {
-            avg: 2.8,
-            median: 2.5,
-            max: 10.0,
-            distribution: [
-              { range: '1x - 2x', count: 725, percentage: 33.7 },
-              { range: '2x - 3x', count: 892, percentage: 41.5 },
-              { range: '3x - 5x', count: 382, percentage: 17.8 },
-              { range: '> 5x', count: 151, percentage: 7.0 },
-            ],
-          },
-          concentrationRisk: {
-            avgSingleTraderWeight: 0.35,
-            avgSingleSymbolWeight: 0.28,
-            highConcentrationStrategies: 187, // > 50% in single trader/symbol
-          },
-        } : undefined,
+        riskMetrics: includePerformance
+          ? {
+              maxDrawdownDistribution: [
+                { range: '< 5%', count: 1520, percentage: 70.7 },
+                { range: '5% - 10%', count: 382, percentage: 17.8 },
+                { range: '10% - 20%', count: 187, percentage: 8.7 },
+                { range: '> 20%', count: 61, percentage: 2.8 },
+              ],
+              leverageUsage: {
+                avg: 2.8,
+                median: 2.5,
+                max: 10.0,
+                distribution: [
+                  { range: '1x - 2x', count: 725, percentage: 33.7 },
+                  { range: '2x - 3x', count: 892, percentage: 41.5 },
+                  { range: '3x - 5x', count: 382, percentage: 17.8 },
+                  { range: '> 5x', count: 151, percentage: 7.0 },
+                ],
+              },
+              concentrationRisk: {
+                avgSingleTraderWeight: 0.35,
+                avgSingleSymbolWeight: 0.28,
+                highConcentrationStrategies: 187, // > 50% in single trader/symbol
+              },
+            }
+          : undefined,
         execution: {
           latencyDistribution: {
             p50: 650,
@@ -295,10 +371,14 @@ export const analyticsRouter = t.router({
 
   // Real-time market insights
   insights: t.procedure
-    .input(z.object({
-      category: z.enum(['momentum', 'volatility', 'liquidation', 'correlation', 'sentiment']).default('momentum'),
-      limit: z.number().min(1).max(20).default(10),
-    }))
+    .input(
+      z.object({
+        category: z
+          .enum(['momentum', 'volatility', 'liquidation', 'correlation', 'sentiment'])
+          .default('momentum'),
+        limit: z.number().min(1).max(20).default(10),
+      }),
+    )
     .query(async ({ input, ctx }) => {
       const { category, limit } = input;
 
@@ -321,7 +401,9 @@ export const analyticsRouter = t.router({
             expectedImpact: Math.random() * 0.1, // percentage
           },
           actionable: true,
-          expiresAt: new Date(Date.now() + (Math.floor(Math.random() * 12) + 1) * 3600000).toISOString(),
+          expiresAt: new Date(
+            Date.now() + (Math.floor(Math.random() * 12) + 1) * 3600000,
+          ).toISOString(),
         })),
         summary: {
           totalInsights: Math.min(8, limit),
@@ -336,17 +418,19 @@ export const analyticsRouter = t.router({
 
   // API usage analytics (admin only)
   apiUsage: protectedProcedure
-    .input(z.object({
-      timeframe: z.enum(['1h', '24h', '7d', '30d']).default('24h'),
-      endpoint: z.string().optional(),
-      userId: z.string().optional(),
-    }))
+    .input(
+      z.object({
+        timeframe: z.enum(['1h', '24h', '7d', '30d']).default('24h'),
+        endpoint: z.string().optional(),
+        userId: z.string().optional(),
+      }),
+    )
     .query(async ({ input, ctx }) => {
       const { timeframe, endpoint, userId } = input;
 
       // Only allow admin users
       if (ctx.user?.kycLevel !== 3) {
-        throw new Error("Admin access required");
+        throw new Error('Admin access required');
       }
 
       // Implementation will query API logs and metrics

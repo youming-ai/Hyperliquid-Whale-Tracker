@@ -1,4 +1,10 @@
-import { Kafka, Producer, Consumer, KafkaMessage, EachMessagePayload } from 'kafkajs';
+import {
+  type Consumer,
+  EachMessagePayload,
+  Kafka,
+  type KafkaMessage,
+  type Producer,
+} from 'kafkajs';
 
 export interface KafkaConfig {
   brokers: string[];
@@ -84,10 +90,11 @@ export class KafkaManager {
 
       this.isInitialized = true;
       console.log('✅ Kafka manager initialized successfully');
-
     } catch (error) {
       console.error('❌ Failed to initialize Kafka manager:', error);
-      throw new Error(`Kafka initialization failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Kafka initialization failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
     }
   }
 
@@ -143,13 +150,15 @@ export class KafkaManager {
 
       await this.producer.send({
         topic,
-        messages: [{
-          key,
-          value: serializedMessage,
-          headers,
-          partition,
-          timestamp: Date.now().toString(),
-        }],
+        messages: [
+          {
+            key,
+            value: serializedMessage,
+            headers,
+            partition,
+            timestamp: Date.now().toString(),
+          },
+        ],
       });
 
       console.log(`📤 Sent message to topic ${topic}${key ? ` (key: ${key})` : ''}`);
@@ -207,7 +216,12 @@ export class KafkaManager {
   }: {
     config: ConsumerConfig;
     topics: string[];
-    messageHandler: (message: KafkaMessage, topic: string, partition: number, offset: string) => Promise<void>;
+    messageHandler: (
+      message: KafkaMessage,
+      topic: string,
+      partition: number,
+      offset: string,
+    ) => Promise<void>;
   }): Promise<string> {
     const consumerId = `${config.groupId}-${Date.now()}`;
 
@@ -259,7 +273,6 @@ export class KafkaManager {
 
       console.log(`✅ Consumer ${consumerId} created and running`);
       return consumerId;
-
     } catch (error) {
       console.error(`❌ Failed to create consumer ${consumerId}:`, error);
       throw error;
@@ -288,9 +301,11 @@ export class KafkaManager {
     const consumerIds = Array.from(this.consumers.keys());
 
     await Promise.all(
-      consumerIds.map(id => this.stopConsumer(id).catch(error =>
-        console.error(`❌ Failed to stop consumer ${id}:`, error)
-      ))
+      consumerIds.map((id) =>
+        this.stopConsumer(id).catch((error) =>
+          console.error(`❌ Failed to stop consumer ${id}:`, error),
+        ),
+      ),
     );
 
     console.log('✅ All consumers stopped');
@@ -314,12 +329,14 @@ export class KafkaManager {
       await admin.connect();
 
       await admin.createTopics({
-        topics: [{
-          topic,
-          numPartitions: partitions,
-          replicationFactor: replicas,
-          topicConfig,
-        }],
+        topics: [
+          {
+            topic,
+            numPartitions: partitions,
+            replicationFactor: replicas,
+            topicConfig,
+          },
+        ],
       });
 
       console.log(`✅ Created topic: ${topic} (${partitions} partitions, ${replicas} replicas)`);
@@ -342,7 +359,7 @@ export class KafkaManager {
     try {
       await admin.connect();
       const metadata = await admin.fetchTopicMetadata();
-      return metadata.topics.map(topic => topic.name);
+      return metadata.topics.map((topic) => topic.name);
     } finally {
       await admin.disconnect();
     }
@@ -355,7 +372,7 @@ export class KafkaManager {
     try {
       await admin.connect();
       const metadata = await admin.fetchTopicMetadata({ topics: [topic] });
-      return metadata.topics.find(t => t.name === topic);
+      return metadata.topics.find((t) => t.name === topic);
     } finally {
       await admin.disconnect();
     }
@@ -371,7 +388,7 @@ export class KafkaManager {
     } catch (error) {
       return {
         status: 'unhealthy',
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: error instanceof Error ? error.message : 'Unknown error',
       };
     }
   }

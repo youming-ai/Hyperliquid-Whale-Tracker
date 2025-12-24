@@ -1,5 +1,5 @@
-import { RedisClient } from './redis';
 import { logger } from '../utils/logger';
+import type { RedisClient } from './redis';
 
 export interface CacheOptions {
   ttl?: number;
@@ -94,7 +94,12 @@ export class HyperDashCache {
     return this.get(key);
   }
 
-  async setCopyPerformance(userId: string, performance: any, period = '7d', ttl = 600): Promise<void> {
+  async setCopyPerformance(
+    userId: string,
+    performance: any,
+    period = '7d',
+    ttl = 600,
+  ): Promise<void> {
     const key = `copy:performance:${userId}:${period}`;
     await this.set(key, performance, { ttl, tags: ['copy', 'performance', userId] });
   }
@@ -154,7 +159,7 @@ export class HyperDashCache {
         // Store in local cache with 30 second TTL
         this.localCache.set(key, {
           value: parsed,
-          expiry: Date.now() + 30000
+          expiry: Date.now() + 30000,
         });
         this.stats.hits++;
         return parsed;
@@ -181,7 +186,7 @@ export class HyperDashCache {
       const localTtl = Math.min(ttl, 30); // Max 30 seconds in local cache
       this.localCache.set(key, {
         value,
-        expiry: Date.now() + (localTtl * 1000)
+        expiry: Date.now() + localTtl * 1000,
       });
 
       // Add to tag sets for invalidation
@@ -251,9 +256,10 @@ export class HyperDashCache {
       pipeline.del(`tag:${tag}`);
       const results = await pipeline.exec();
 
-      const deletedCount = results?.slice(0, -1).reduce((acc, [err, count]) => {
-        return acc + (err ? 0 : (count as number));
-      }, 0) || 0;
+      const deletedCount =
+        results?.slice(0, -1).reduce((acc, [err, count]) => {
+          return acc + (err ? 0 : (count as number));
+        }, 0) || 0;
 
       logger.info(`Invalidated ${deletedCount} keys for tag: ${tag}`);
       return deletedCount;
@@ -323,7 +329,7 @@ export class HyperDashCache {
       misses: this.stats.misses,
       hitRate: total > 0 ? this.stats.hits / total : 0,
       keys: this.localCache.size,
-      memory: `${this.localCache.size} items in memory`
+      memory: `${this.localCache.size} items in memory`,
     };
   }
 
@@ -336,7 +342,7 @@ export class HyperDashCache {
       return {
         keys: dbsize,
         memory: info,
-        keyspace: keyspace
+        keyspace: keyspace,
       };
     } catch (error) {
       logger.error('Error getting Redis stats:', error);
@@ -380,7 +386,7 @@ export class HyperDashCache {
   async getOrSet<T = any>(
     key: string,
     fetcher: () => Promise<T>,
-    options: CacheOptions = {}
+    options: CacheOptions = {},
   ): Promise<T> {
     const cached = await this.get<T>(key);
     if (cached !== null) {
@@ -407,7 +413,9 @@ export class HyperDashCache {
     return results;
   }
 
-  async mset<T = any>(entries: Array<{ key: string; value: T; options?: CacheOptions }>): Promise<void> {
+  async mset<T = any>(
+    entries: Array<{ key: string; value: T; options?: CacheOptions }>,
+  ): Promise<void> {
     const pipeline = this.redis.createPipeline();
 
     for (const entry of entries) {
@@ -419,7 +427,7 @@ export class HyperDashCache {
       // Store in local cache too
       this.localCache.set(entry.key, {
         value: entry.value,
-        expiry: Date.now() + (Math.min(ttl, 30) * 1000)
+        expiry: Date.now() + Math.min(ttl, 30) * 1000,
       });
     }
 

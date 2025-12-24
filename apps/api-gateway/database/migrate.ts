@@ -1,6 +1,6 @@
-import { Pool } from 'pg';
-import { readFileSync, readdirSync } from 'fs';
+import { readdirSync, readFileSync } from 'fs';
 import { join } from 'path';
+import type { Pool } from 'pg';
 import { logger } from '../utils/logger';
 
 export interface Migration {
@@ -40,16 +40,16 @@ export class MigrationRunner {
   private loadMigrations(): Migration[] {
     try {
       const files = readdirSync(this.migrationsPath)
-        .filter(file => file.endsWith('.sql'))
+        .filter((file) => file.endsWith('.sql'))
         .sort();
 
-      return files.map(file => {
+      return files.map((file) => {
         const sql = readFileSync(join(this.migrationsPath, file), 'utf8');
         return {
           id: file.replace('.sql', ''),
           name: file,
           sql,
-          hash: this.calculateHash(sql)
+          hash: this.calculateHash(sql),
         };
       });
     } catch (error) {
@@ -60,7 +60,7 @@ export class MigrationRunner {
 
   private async getExecutedMigrations(): Promise<Set<string>> {
     const result = await this.pool.query('SELECT id FROM schema_migrations');
-    return new Set(result.rows.map(row => row.id));
+    return new Set(result.rows.map((row) => row.id));
   }
 
   async migrate(): Promise<void> {
@@ -69,7 +69,7 @@ export class MigrationRunner {
     const migrations = this.loadMigrations();
     const executed = await this.getExecutedMigrations();
 
-    const pendingMigrations = migrations.filter(m => !executed.has(m.id));
+    const pendingMigrations = migrations.filter((m) => !executed.has(m.id));
 
     if (pendingMigrations.length === 0) {
       logger.info('No pending migrations');
@@ -89,10 +89,10 @@ export class MigrationRunner {
         try {
           await client.query(migration.sql);
 
-          await client.query(
-            'INSERT INTO schema_migrations (id, name) VALUES ($1, $2)',
-            [migration.id, migration.name]
-          );
+          await client.query('INSERT INTO schema_migrations (id, name) VALUES ($1, $2)', [
+            migration.id,
+            migration.name,
+          ]);
 
           logger.info(`Migration ${migration.name} completed`);
         } catch (error) {
@@ -118,14 +118,14 @@ export class MigrationRunner {
 
     let targetIndex = migrations.length;
     if (targetId) {
-      targetIndex = migrations.findIndex(m => m.id === targetId);
+      targetIndex = migrations.findIndex((m) => m.id === targetId);
       if (targetIndex === -1) {
         throw new Error(`Migration ${targetId} not found`);
       }
     }
 
-    const toRollback = migrations.filter(m =>
-      executed.has(m.id) && migrations.indexOf(m) >= targetIndex
+    const toRollback = migrations.filter(
+      (m) => executed.has(m.id) && migrations.indexOf(m) >= targetIndex,
     );
 
     if (toRollback.length === 0) {
@@ -145,10 +145,7 @@ export class MigrationRunner {
 
         // Note: This would require rollback migrations to be implemented
         // For now, we'll just remove the migration record
-        await client.query(
-          'DELETE FROM schema_migrations WHERE id = $1',
-          [migration.id]
-        );
+        await client.query('DELETE FROM schema_migrations WHERE id = $1', [migration.id]);
 
         logger.info(`Migration ${migration.name} rolled back`);
       }

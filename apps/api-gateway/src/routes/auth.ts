@@ -1,8 +1,8 @@
+import { publicProcedure, t } from '@hyperdash/contracts';
+import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
-import { t, publicProcedure } from '@hyperdash/contracts';
 import { getAuthService } from '../services/auth';
 import { logger } from '../utils/logger';
-import { TRPCError } from '@trpc/server';
 
 /**
  * Authentication Router
@@ -12,9 +12,11 @@ import { TRPCError } from '@trpc/server';
 export const authRouter = t.router({
   // Wallet-based authentication - generate nonce
   generateNonce: t.procedure
-    .input(z.object({
-      walletAddress: z.string().regex(/^0x[a-fA-F0-9]{40}$/, 'Invalid Ethereum address'),
-    }))
+    .input(
+      z.object({
+        walletAddress: z.string().regex(/^0x[a-fA-F0-9]{40}$/, 'Invalid Ethereum address'),
+      }),
+    )
     .mutation(async ({ input, ctx }) => {
       const { walletAddress } = input;
       const authService = getAuthService();
@@ -38,11 +40,13 @@ export const authRouter = t.router({
 
   // Authenticate with wallet signature
   authenticateWithWallet: t.procedure
-    .input(z.object({
-      walletAddress: z.string().regex(/^0x[a-fA-F0-9]{40}$/, 'Invalid Ethereum address'),
-      signature: z.string(),
-      nonce: z.string(),
-    }))
+    .input(
+      z.object({
+        walletAddress: z.string().regex(/^0x[a-fA-F0-9]{40}$/, 'Invalid Ethereum address'),
+        signature: z.string(),
+        nonce: z.string(),
+      }),
+    )
     .mutation(async ({ input, ctx }) => {
       const { walletAddress, signature, nonce } = input;
       const authService = getAuthService();
@@ -54,7 +58,7 @@ export const authRouter = t.router({
           walletAddress,
           message,
           signature,
-          nonce
+          nonce,
         );
 
         if (!isValidSignature) {
@@ -66,7 +70,7 @@ export const authRouter = t.router({
 
         // Check if user exists in database (mock implementation)
         // In a real implementation, query the users table
-        let userPayload = await this.findOrCreateUser(walletAddress);
+        const userPayload = await this.findOrCreateUser(walletAddress);
 
         // Generate tokens
         const tokens = await authService.generateTokens(userPayload);
@@ -104,9 +108,11 @@ export const authRouter = t.router({
 
   // Refresh access token
   refreshToken: t.procedure
-    .input(z.object({
-      refreshToken: z.string(),
-    }))
+    .input(
+      z.object({
+        refreshToken: z.string(),
+      }),
+    )
     .mutation(async ({ input, ctx }) => {
       const { refreshToken } = input;
       const authService = getAuthService();
@@ -136,10 +142,12 @@ export const authRouter = t.router({
 
   // Logout (revoke refresh token)
   logout: t.procedure
-    .input(z.object({
-      refreshToken: z.string().optional(),
-      allDevices: z.boolean().default(false),
-    }))
+    .input(
+      z.object({
+        refreshToken: z.string().optional(),
+        allDevices: z.boolean().default(false),
+      }),
+    )
     .mutation(async ({ input, ctx }) => {
       const { refreshToken, allDevices } = input;
       const authService = getAuthService();
@@ -186,9 +194,11 @@ export const authRouter = t.router({
 
   // Verify token validity
   verifyToken: t.procedure
-    .input(z.object({
-      token: z.string(),
-    }))
+    .input(
+      z.object({
+        token: z.string(),
+      }),
+    )
     .query(async ({ input, ctx }) => {
       const { token } = input;
       const authService = getAuthService();
@@ -216,9 +226,11 @@ export const authRouter = t.router({
 
   // Get token information
   tokenInfo: t.procedure
-    .input(z.object({
-      token: z.string(),
-    }))
+    .input(
+      z.object({
+        token: z.string(),
+      }),
+    )
     .query(async ({ input, ctx }) => {
       const { token } = input;
       const authService = getAuthService();
@@ -254,29 +266,30 @@ export const authRouter = t.router({
     }),
 
   // Get authentication statistics (admin only)
-  authStats: t.procedure
-    .query(async ({ ctx }) => {
-      // In a real implementation, this would be protected by admin middleware
-      const authService = getAuthService();
-      const stats = authService.getTokenStats();
+  authStats: t.procedure.query(async ({ ctx }) => {
+    // In a real implementation, this would be protected by admin middleware
+    const authService = getAuthService();
+    const stats = authService.getTokenStats();
 
-      return {
-        tokenStats: stats,
-        systemTime: new Date().toISOString(),
-        config: {
-          jwtExpiry: process.env.JWT_EXPIRES_IN || '24h',
-          refreshExpiry: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
-          issuer: process.env.JWT_ISSUER || 'hyperdash',
-          audience: process.env.JWT_AUDIENCE || 'hyperdash-users',
-        },
-      };
-    }),
+    return {
+      tokenStats: stats,
+      systemTime: new Date().toISOString(),
+      config: {
+        jwtExpiry: process.env.JWT_EXPIRES_IN || '24h',
+        refreshExpiry: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
+        issuer: process.env.JWT_ISSUER || 'hyperdash',
+        audience: process.env.JWT_AUDIENCE || 'hyperdash-users',
+      },
+    };
+  }),
 
   // Validate password strength (for users who also use password authentication)
   validatePassword: t.procedure
-    .input(z.object({
-      password: z.string(),
-    }))
+    .input(
+      z.object({
+        password: z.string(),
+      }),
+    )
     .query(async ({ input, ctx }) => {
       const { password } = input;
       const authService = getAuthService();
@@ -315,7 +328,7 @@ export const authRouter = t.router({
 // Add decodeToken method to AuthService class (for token info endpoint)
 const originalAuthService = getAuthService;
 Object.defineProperty(AuthService.prototype, 'decodeToken', {
-  value: function(token: string) {
+  value: (token: string) => {
     try {
       return require('jsonwebtoken').decode(token, { complete: true });
     } catch (error) {

@@ -1,6 +1,6 @@
 import winston from 'winston';
 import 'winston-daily-rotate-file';
-import { Request } from 'express';
+import type { Request } from 'express';
 
 export interface LogContext {
   userId?: string;
@@ -41,7 +41,7 @@ class Logger {
           level: config.level,
           silent: config.silent,
           format: this.createConsoleFormat(config.format),
-        })
+        }),
       );
     }
 
@@ -58,7 +58,7 @@ class Logger {
           maxSize: config.maxSize || '20m',
           maxFiles: config.maxFiles || '14d',
           format: this.createFileFormat('combined'),
-        })
+        }),
       );
 
       // Error-only log file
@@ -72,7 +72,7 @@ class Logger {
           maxSize: config.maxSize || '20m',
           maxFiles: config.maxFiles || '30d',
           format: this.createFileFormat('error'),
-        })
+        }),
       );
 
       // Audit log file for security events
@@ -86,7 +86,7 @@ class Logger {
           maxSize: config.maxSize || '20m',
           maxFiles: config.maxFiles || '90d',
           format: this.createFileFormat('audit'),
-        })
+        }),
       );
     }
 
@@ -115,7 +115,7 @@ class Logger {
         winston.format.timestamp(),
         winston.format.errors({ stack: true }),
         winston.format.json(),
-        winston.format.colorize({ all: true })
+        winston.format.colorize({ all: true }),
       );
     }
 
@@ -126,7 +126,7 @@ class Logger {
       winston.format.printf(({ timestamp, level, message, ...meta }) => {
         const metaStr = Object.keys(meta).length > 0 ? JSON.stringify(meta, null, 2) : '';
         return `${timestamp} [${level}]: ${message} ${metaStr}`;
-      })
+      }),
     );
   }
 
@@ -134,7 +134,7 @@ class Logger {
     const baseFormat = winston.format.combine(
       winston.format.timestamp(),
       winston.format.errors({ stack: true }),
-      winston.format.json()
+      winston.format.json(),
     );
 
     if (type === 'audit') {
@@ -143,7 +143,7 @@ class Logger {
         winston.format((info) => {
           info.logType = 'audit';
           return info;
-        })()
+        })(),
       );
     }
 
@@ -228,23 +228,26 @@ class Logger {
           name: error.name,
           message: error.message,
           stack: error.stack,
-        }
-      })
+        },
+      }),
     });
   }
 
   /**
    * Log audit event
    */
-  audit(message: string, context: LogContext & {
-    actorId?: string;
-    action: string;
-    resourceType?: string;
-    resourceId?: string;
-    oldValues?: any;
-    newValues?: any;
-    result?: 'success' | 'failure';
-  }): void {
+  audit(
+    message: string,
+    context: LogContext & {
+      actorId?: string;
+      action: string;
+      resourceType?: string;
+      resourceId?: string;
+      oldValues?: any;
+      newValues?: any;
+      result?: 'success' | 'failure';
+    },
+  ): void {
     this.winston.info(message, {
       logType: 'audit',
       timestamp: new Date().toISOString(),
@@ -310,7 +313,13 @@ class Logger {
   /**
    * Log external API call
    */
-  logApiCall(url: string, method: string, statusCode: number, duration: number, context?: LogContext): void {
+  logApiCall(
+    url: string,
+    method: string,
+    statusCode: number,
+    duration: number,
+    context?: LogContext,
+  ): void {
     this.winston.info('External API Call', {
       logType: 'external_api',
       api: {
@@ -327,11 +336,14 @@ class Logger {
   /**
    * Log security event
    */
-  logSecurity(event: string, context: LogContext & {
-    severity?: 'low' | 'medium' | 'high' | 'critical';
-    source?: string;
-    details?: any;
-  }): void {
+  logSecurity(
+    event: string,
+    context: LogContext & {
+      severity?: 'low' | 'medium' | 'high' | 'critical';
+      source?: string;
+      details?: any;
+    },
+  ): void {
     this.winston.warn(`Security Event: ${event}`, {
       logType: 'security',
       security: {

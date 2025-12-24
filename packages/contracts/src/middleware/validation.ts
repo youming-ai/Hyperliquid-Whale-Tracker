@@ -4,7 +4,7 @@ import type { Context } from '../types';
 
 export function createValidationMiddleware<T extends z.ZodSchema>(
   schema: T,
-  source: 'body' | 'query' | 'params' = 'body'
+  source: 'body' | 'query' | 'params' = 'body',
 ) {
   return async ({ ctx, next }: { ctx: Context; next: any }) => {
     let data: unknown;

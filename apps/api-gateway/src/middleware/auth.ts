@@ -1,5 +1,5 @@
+import type { AsyncContext, Context } from '@hyperdash/contracts';
 import { TRPCError } from '@trpc/server';
-import type { Context, AsyncContext } from '@hyperdash/contracts';
 import { getAuthService } from '../services/auth';
 
 /**
@@ -7,7 +7,13 @@ import { getAuthService } from '../services/auth';
  *
  * This middleware verifies JWT tokens and attaches user information to the context
  */
-export const authMiddleware = async ({ ctx, next }: { ctx: AsyncContext; next: () => Promise<any> }) => {
+export const authMiddleware = async ({
+  ctx,
+  next,
+}: {
+  ctx: AsyncContext;
+  next: () => Promise<any>;
+}) => {
   try {
     // Get token from Authorization header
     const authHeader = ctx.req?.headers?.authorization;
@@ -54,7 +60,13 @@ export const authMiddleware = async ({ ctx, next }: { ctx: AsyncContext; next: (
  *
  * Attaches user to context if token is present, but doesn't throw if not
  */
-export const optionalAuthMiddleware = async ({ ctx, next }: { ctx: AsyncContext; next: () => Promise<any> }) => {
+export const optionalAuthMiddleware = async ({
+  ctx,
+  next,
+}: {
+  ctx: AsyncContext;
+  next: () => Promise<any>;
+}) => {
   try {
     const authHeader = ctx.req?.headers?.authorization;
     if (authHeader && authHeader.startsWith('Bearer ')) {
@@ -116,7 +128,13 @@ export const kycLevelMiddleware = (minLevel: number) => {
 /**
  * Admin middleware for administrative functions
  */
-export const adminMiddleware = async ({ ctx, next }: { ctx: AsyncContext; next: () => Promise<any> }) => {
+export const adminMiddleware = async ({
+  ctx,
+  next,
+}: {
+  ctx: AsyncContext;
+  next: () => Promise<any>;
+}) => {
   if (!ctx.user) {
     throw new TRPCError({
       code: 'UNAUTHORIZED',

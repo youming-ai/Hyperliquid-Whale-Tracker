@@ -1,6 +1,6 @@
-import { Kafka, Producer } from 'kafkajs';
-import { logger } from '../utils/logger';
+import { Kafka, type Producer } from 'kafkajs';
 import { config } from '../config';
+import { logger } from '../utils/logger';
 
 interface TradeData {
   symbol: string;
@@ -94,14 +94,16 @@ export class KafkaProducer {
     try {
       await this.producer.send({
         topic: config.topics.trades,
-        messages: [{
-          key: trade.symbol,
-          value: JSON.stringify({
-            ...trade,
-            timestamp: trade.timestamp.toISOString(),
-          }),
-          timestamp: trade.timestamp.getTime(),
-        }],
+        messages: [
+          {
+            key: trade.symbol,
+            value: JSON.stringify({
+              ...trade,
+              timestamp: trade.timestamp.toISOString(),
+            }),
+            timestamp: trade.timestamp.getTime(),
+          },
+        ],
       });
     } catch (error) {
       logger.error('Failed to send trade to Kafka:', error);
@@ -116,14 +118,16 @@ export class KafkaProducer {
     try {
       await this.producer.send({
         topic: config.topics.quotes,
-        messages: [{
-          key: quote.symbol,
-          value: JSON.stringify({
-            ...quote,
-            timestamp: quote.timestamp.toISOString(),
-          }),
-          timestamp: quote.timestamp.getTime(),
-        }],
+        messages: [
+          {
+            key: quote.symbol,
+            value: JSON.stringify({
+              ...quote,
+              timestamp: quote.timestamp.toISOString(),
+            }),
+            timestamp: quote.timestamp.getTime(),
+          },
+        ],
       });
     } catch (error) {
       logger.error('Failed to send quote to Kafka:', error);
@@ -138,14 +142,16 @@ export class KafkaProducer {
     try {
       await this.producer.send({
         topic: config.topics.funding,
-        messages: [{
-          key: funding.symbol,
-          value: JSON.stringify({
-            ...funding,
-            fundingTime: funding.fundingTime.toISOString(),
-          }),
-          timestamp: funding.fundingTime.getTime(),
-        }],
+        messages: [
+          {
+            key: funding.symbol,
+            value: JSON.stringify({
+              ...funding,
+              fundingTime: funding.fundingTime.toISOString(),
+            }),
+            timestamp: funding.fundingTime.getTime(),
+          },
+        ],
       });
     } catch (error) {
       logger.error('Failed to send funding to Kafka:', error);
@@ -162,7 +168,7 @@ export class KafkaProducer {
     try {
       await this.producer.send({
         topic: config.topics.openInterest,
-        messages: openInterest.map(oi => ({
+        messages: openInterest.map((oi) => ({
           key: oi.symbol,
           value: JSON.stringify({
             ...oi,
@@ -186,7 +192,7 @@ export class KafkaProducer {
     try {
       await this.producer.send({
         topic: config.topics.liquidations,
-        messages: liquidations.map(liq => ({
+        messages: liquidations.map((liq) => ({
           key: liq.symbol,
           value: JSON.stringify({
             ...liq,
@@ -210,7 +216,7 @@ export class KafkaProducer {
     try {
       await this.producer.send({
         topic: 'hyperliquid.symbols',
-        messages: symbols.map(symbol => ({
+        messages: symbols.map((symbol) => ({
           key: symbol.symbol,
           value: JSON.stringify({
             ...symbol,
@@ -234,7 +240,7 @@ export class KafkaProducer {
     try {
       await this.producer.send({
         topic: config.topics.trades,
-        messages: trades.map(trade => ({
+        messages: trades.map((trade) => ({
           key: trade.symbol,
           value: JSON.stringify({
             ...trade,
@@ -258,7 +264,7 @@ export class KafkaProducer {
     try {
       await this.producer.send({
         topic: config.topics.quotes,
-        messages: quotes.map(quote => ({
+        messages: quotes.map((quote) => ({
           key: quote.symbol,
           value: JSON.stringify({
             ...quote,

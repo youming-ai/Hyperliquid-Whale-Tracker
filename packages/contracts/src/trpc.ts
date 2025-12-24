@@ -1,7 +1,7 @@
 import { initTRPC, TRPCError } from '@trpc/server';
 import superjson from 'superjson';
-import type { AsyncContext } from './types';
 import { z } from 'zod';
+import type { AsyncContext } from './types';
 
 export interface Context {
   user?: {
@@ -19,9 +19,10 @@ const t = initTRPC.context<AsyncContext>().create({
     ...shape,
     data: {
       ...shape.data,
-      zodError: error.code === 'BAD_REQUEST' && error.cause instanceof z.ZodError
-        ? error.cause.flatten()
-        : null,
+      zodError:
+        error.code === 'BAD_REQUEST' && error.cause instanceof z.ZodError
+          ? error.cause.flatten()
+          : null,
     },
   }),
 });
@@ -40,22 +41,23 @@ export const protectedProcedure = t.procedure.use(({ ctx, next }) => {
   });
 });
 
-export const kycProcedure = (minLevel: number) => t.procedure.use(({ ctx, next }) => {
-  if (!ctx.user) {
-    throw new TRPCError({ code: 'UNAUTHORIZED' });
-  }
-  if (ctx.user.kycLevel < minLevel) {
-    throw new TRPCError({
-      code: 'FORBIDDEN',
-      message: `KYC level ${minLevel} required`
+export const kycProcedure = (minLevel: number) =>
+  t.procedure.use(({ ctx, next }) => {
+    if (!ctx.user) {
+      throw new TRPCError({ code: 'UNAUTHORIZED' });
+    }
+    if (ctx.user.kycLevel < minLevel) {
+      throw new TRPCError({
+        code: 'FORBIDDEN',
+        message: `KYC level ${minLevel} required`,
+      });
+    }
+    return next({
+      ctx: {
+        ...ctx,
+        user: ctx.user,
+      },
     });
-  }
-  return next({
-    ctx: {
-      ...ctx,
-      user: ctx.user,
-    },
   });
-});
 
 export default t;

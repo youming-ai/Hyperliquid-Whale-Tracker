@@ -20,14 +20,13 @@ async function main() {
 
     process.on('SIGINT', shutdown);
     process.on('SIGTERM', shutdown);
-
   } catch (error) {
     logger.error('Failed to start billing service:', error);
     process.exit(1);
   }
 }
 
-main().catch(error => {
+main().catch((error) => {
   logger.error('Fatal error:', error);
   process.exit(1);
 });

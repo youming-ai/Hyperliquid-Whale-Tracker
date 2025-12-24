@@ -1,4 +1,4 @@
-import { createClient, ClickHouseClient } from '@clickhouse/client';
+import { type ClickHouseClient, createClient } from '@clickhouse/client';
 
 export interface ClickHouseConfig {
   url: string;
@@ -58,10 +58,11 @@ export class ClickHouseConnection {
       console.log('✅ ClickHouse connection established successfully');
 
       this.isInitialized = true;
-
     } catch (error) {
       console.error('❌ Failed to initialize ClickHouse connection:', error);
-      throw new Error(`ClickHouse connection failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `ClickHouse connection failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
     }
   }
 
@@ -72,7 +73,11 @@ export class ClickHouseConnection {
     return this.client;
   }
 
-  async healthCheck(): Promise<{ status: 'healthy' | 'unhealthy'; latency?: number; error?: string }> {
+  async healthCheck(): Promise<{
+    status: 'healthy' | 'unhealthy';
+    latency?: number;
+    error?: string;
+  }> {
     try {
       if (!this.client) {
         return { status: 'unhealthy', error: 'Client not initialized' };
@@ -86,7 +91,7 @@ export class ClickHouseConnection {
     } catch (error) {
       return {
         status: 'unhealthy',
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: error instanceof Error ? error.message : 'Unknown error',
       };
     }
   }
@@ -223,13 +228,18 @@ export class ClickHouseConnection {
         } catch (error) {
           retries++;
           if (retries > maxRetries) {
-            console.error(`❌ Failed to insert batch ${i / batchSize + 1} after ${maxRetries} retries:`, error);
+            console.error(
+              `❌ Failed to insert batch ${i / batchSize + 1} after ${maxRetries} retries:`,
+              error,
+            );
             throw error;
           }
 
-          const delay = Math.pow(2, retries) * 1000; // Exponential backoff
-          console.warn(`⚠️ Batch insert failed, retrying in ${delay}ms... (attempt ${retries}/${maxRetries})`);
-          await new Promise(resolve => setTimeout(resolve, delay));
+          const delay = 2 ** retries * 1000; // Exponential backoff
+          console.warn(
+            `⚠️ Batch insert failed, retrying in ${delay}ms... (attempt ${retries}/${maxRetries})`,
+          );
+          await new Promise((resolve) => setTimeout(resolve, delay));
         }
       }
     }
@@ -290,7 +300,9 @@ export function createClickHouseConnection(config?: ClickHouseConfig): ClickHous
 
 export function getClickHouseConnection(): ClickHouseConnection {
   if (!chInstance) {
-    throw new Error('ClickHouse connection not initialized. Call createClickHouseConnection() first.');
+    throw new Error(
+      'ClickHouse connection not initialized. Call createClickHouseConnection() first.',
+    );
   }
   return chInstance;
 }

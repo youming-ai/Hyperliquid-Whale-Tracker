@@ -1,7 +1,7 @@
-import { Server as HTTPServer } from 'http';
-import { Server as SocketIOServer, Socket } from 'socket.io';
-import jwt from 'jsonwebtoken';
 import { createAuthContext } from '@hyperdash/contracts';
+import type { Server as HTTPServer } from 'http';
+import jwt from 'jsonwebtoken';
+import { type Socket, Server as SocketIOServer } from 'socket.io';
 
 export interface AuthenticatedSocket extends Socket {
   userId: string;
@@ -82,8 +82,9 @@ class WebSocketManager {
     // Authentication middleware
     this.io.use(async (socket: any, next) => {
       try {
-        const token = socket.handshake.auth.token ||
-                     socket.handshake.headers.authorization?.replace('Bearer ', '');
+        const token =
+          socket.handshake.auth.token ||
+          socket.handshake.headers.authorization?.replace('Bearer ', '');
 
         if (!token) {
           return next(new Error('Authentication required'));
@@ -220,7 +221,6 @@ class WebSocketManager {
         },
         timestamp: new Date().toISOString(),
       });
-
     } catch (error) {
       console.error(`Subscription error for room ${room}:`, error);
       socket.emit('error', {
@@ -243,7 +243,6 @@ class WebSocketManager {
         data: { room },
         timestamp: new Date().toISOString(),
       });
-
     } catch (error) {
       console.error(`Unsubscription error for room ${room}:`, error);
     }
@@ -265,7 +264,6 @@ class WebSocketManager {
 
       // Route message based on type
       this.routeMessage(enhancedMessage, socket);
-
     } catch (error) {
       console.error(`Error handling message from ${socket.id}:`, error);
       socket.emit('error', {
@@ -307,7 +305,9 @@ class WebSocketManager {
   }
 
   private handleDisconnection(socket: AuthenticatedSocket, reason: string): void {
-    console.log(`🔌 WebSocket client disconnected: ${socket.id} (user: ${socket.userId}) - Reason: ${reason}`);
+    console.log(
+      `🔌 WebSocket client disconnected: ${socket.id} (user: ${socket.userId}) - Reason: ${reason}`,
+    );
 
     // Update metrics
     this.metrics.activeConnections--;
@@ -378,7 +378,7 @@ class WebSocketManager {
     ];
 
     // Check if room matches any valid pattern
-    const isValidPattern = validPatterns.some(pattern => pattern.test(room));
+    const isValidPattern = validPatterns.some((pattern) => pattern.test(room));
 
     // Additional permission checks based on room type
     if (room.startsWith('user:') && !room.endsWith(`:${user.userId}`)) {
@@ -416,7 +416,11 @@ class WebSocketManager {
   }
 
   // Service communication
-  private emitToService(service: string, message: WebSocketMessage, senderSocket?: AuthenticatedSocket): void {
+  private emitToService(
+    service: string,
+    message: WebSocketMessage,
+    senderSocket?: AuthenticatedSocket,
+  ): void {
     // This would emit to internal service handlers
     // In a real implementation, this would use event emitters or message queues
     console.log(`🔄 Routing message to ${service}:`, message.type);
@@ -428,7 +432,7 @@ class WebSocketManager {
     const currentMinute = Math.floor(now / 60000);
 
     // Find or create entry for current minute
-    let minuteEntry = this.messageHistory.find(entry => entry.timestamp === currentMinute);
+    let minuteEntry = this.messageHistory.find((entry) => entry.timestamp === currentMinute);
     if (!minuteEntry) {
       minuteEntry = { timestamp: currentMinute, count: 0 };
       this.messageHistory.push(minuteEntry);
@@ -447,11 +451,14 @@ class WebSocketManager {
 
     // Remove entries older than 5 minutes
     this.messageHistory = this.messageHistory.filter(
-      entry => currentMinute - entry.timestamp < 5
+      (entry) => currentMinute - entry.timestamp < 5,
     );
   }
 
-  getMetrics(): ConnectionMetrics & { roomCount: number; clientDetails: Array<{ socketId: string; userId: string; rooms: string[] }> } {
+  getMetrics(): ConnectionMetrics & {
+    roomCount: number;
+    clientDetails: Array<{ socketId: string; userId: string; rooms: string[] }>;
+  } {
     const clientDetails = Array.from(this.connectedClients.entries()).map(([socketId, socket]) => ({
       socketId,
       userId: socket.userId,

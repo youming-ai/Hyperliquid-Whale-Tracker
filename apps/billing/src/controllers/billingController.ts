@@ -1,7 +1,7 @@
-import { Request, Response } from 'express';
+import type { Request, Response } from 'express';
+import { createError } from '../middleware/errorHandler';
 import { BillingService } from '../services/billingService';
 import { logger } from '../utils/logger';
-import { createError } from '../middleware/errorHandler';
 
 const billingService = new BillingService();
 

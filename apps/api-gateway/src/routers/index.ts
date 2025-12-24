@@ -1,6 +1,6 @@
 import { initTRPC, TRPCError } from '@trpc/server';
 import { z } from 'zod';
-import { Context } from '../context';
+import type { Context } from '../context';
 import { authMiddleware } from '../middleware/auth';
 import { rateLimitMiddleware } from '../middleware/rateLimit';
 import { validationMiddleware } from '../middleware/validation';
@@ -11,9 +11,10 @@ export const t = initTRPC.context<Context>().create({
     ...shape,
     data: {
       ...shape.data,
-      zodError: error.code === 'BAD_REQUEST' && error.cause instanceof z.ZodError
-        ? error.cause.flatten()
-        : null,
+      zodError:
+        error.code === 'BAD_REQUEST' && error.cause instanceof z.ZodError
+          ? error.cause.flatten()
+          : null,
     },
   }),
 });

@@ -1,5 +1,5 @@
-import { type CreateHTTPContextOptions } from '@trpc/server/adapters/standalone';
-import { type inferAsyncReturnType } from '@trpc/server';
+import type { inferAsyncReturnType } from '@trpc/server';
+import type { CreateHTTPContextOptions } from '@trpc/server/adapters/standalone';
 
 export interface AuthContext {
   userId: string;
@@ -23,7 +23,7 @@ export type CreateContextOptions = CreateHTTPContextOptions<Request, Response>;
 
 export function createContext(opts?: CreateContextOptions): Context {
   return {
-    ip: opts?.req?.headers['x-forwarded-for'] as string || opts?.req?.socket?.remoteAddress,
+    ip: (opts?.req?.headers['x-forwarded-for'] as string) || opts?.req?.socket?.remoteAddress,
     userAgent: opts?.req?.headers['user-agent'],
     req: opts?.req,
     res: opts?.res,

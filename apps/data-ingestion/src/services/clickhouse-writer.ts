@@ -1,6 +1,6 @@
 import { createClient } from '@clickhouse/client';
-import { logger } from '../utils/logger';
 import { config } from '../config';
+import { logger } from '../utils/logger';
 
 interface TradeData {
   symbol: string;
@@ -203,14 +203,16 @@ export class ClickHouseWriter {
     try {
       await this.client.insert({
         table: 'hyperliquid_trades',
-        values: [{
-          symbol: trade.symbol,
-          side: trade.side,
-          price: trade.price,
-          size: trade.size,
-          timestamp: trade.timestamp,
-          hash: trade.hash,
-        }],
+        values: [
+          {
+            symbol: trade.symbol,
+            side: trade.side,
+            price: trade.price,
+            size: trade.size,
+            timestamp: trade.timestamp,
+            hash: trade.hash,
+          },
+        ],
         format: 'JSONEachRow',
       });
     } catch (error) {
@@ -226,14 +228,16 @@ export class ClickHouseWriter {
     try {
       await this.client.insert({
         table: 'hyperliquid_quotes',
-        values: [{
-          symbol: quote.symbol,
-          bid: quote.bid,
-          ask: quote.ask,
-          bidSize: quote.bidSize,
-          askSize: quote.askSize,
-          timestamp: quote.timestamp,
-        }],
+        values: [
+          {
+            symbol: quote.symbol,
+            bid: quote.bid,
+            ask: quote.ask,
+            bidSize: quote.bidSize,
+            askSize: quote.askSize,
+            timestamp: quote.timestamp,
+          },
+        ],
         format: 'JSONEachRow',
       });
     } catch (error) {
@@ -249,11 +253,13 @@ export class ClickHouseWriter {
     try {
       await this.client.insert({
         table: 'hyperliquid_funding',
-        values: [{
-          symbol: funding.symbol,
-          fundingRate: funding.fundingRate,
-          fundingTime: funding.fundingTime,
-        }],
+        values: [
+          {
+            symbol: funding.symbol,
+            fundingRate: funding.fundingRate,
+            fundingTime: funding.fundingTime,
+          },
+        ],
         format: 'JSONEachRow',
       });
     } catch (error) {
@@ -271,7 +277,7 @@ export class ClickHouseWriter {
     try {
       await this.client.insert({
         table: 'hyperliquid_open_interest',
-        values: openInterest.map(oi => ({
+        values: openInterest.map((oi) => ({
           symbol: oi.symbol,
           openInterest: oi.openInterest,
           timestamp: oi.timestamp,
@@ -293,7 +299,7 @@ export class ClickHouseWriter {
     try {
       await this.client.insert({
         table: 'hyperliquid_liquidations',
-        values: liquidations.map(liq => ({
+        values: liquidations.map((liq) => ({
           symbol: liq.symbol,
           side: liq.side,
           price: liq.price,
@@ -318,7 +324,7 @@ export class ClickHouseWriter {
     try {
       await this.client.insert({
         table: 'hyperliquid_symbols',
-        values: symbols.map(symbol => ({
+        values: symbols.map((symbol) => ({
           symbol: symbol.symbol,
           baseCurrency: symbol.baseCurrency,
           quoteCurrency: symbol.quoteCurrency,
@@ -343,7 +349,7 @@ export class ClickHouseWriter {
     try {
       await this.client.insert({
         table: 'hyperliquid_trades',
-        values: trades.map(trade => ({
+        values: trades.map((trade) => ({
           symbol: trade.symbol,
           side: trade.side,
           price: trade.price,
@@ -368,7 +374,7 @@ export class ClickHouseWriter {
     try {
       await this.client.insert({
         table: 'hyperliquid_quotes',
-        values: quotes.map(quote => ({
+        values: quotes.map((quote) => ({
           symbol: quote.symbol,
           bid: quote.bid,
           ask: quote.ask,

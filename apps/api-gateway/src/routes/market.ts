@@ -1,21 +1,21 @@
-import { z } from 'zod';
 import {
-  MarketOverviewParamsSchema,
-  OHLCVParamsSchema,
-  HeatmapParamsSchema,
-  schemas
-} from '@hyperdash/shared-types';
-import { t } from '@hyperdash/contracts';
-import {
-  createAuthMiddleware,
-  requireAuth,
-  createRateLimitMiddleware,
-  RateLimits,
-  NotFoundError,
-  ExternalServiceError,
   Cache,
+  createAuthMiddleware,
+  createRateLimitMiddleware,
+  ExternalServiceError,
+  NotFoundError,
+  RateLimits,
+  requireAuth,
+  t,
 } from '@hyperdash/contracts';
 import { getClickHouseConnection, getDatabaseConnection } from '@hyperdash/database';
+import {
+  HeatmapParamsSchema,
+  MarketOverviewParamsSchema,
+  OHLCVParamsSchema,
+  schemas,
+} from '@hyperdash/shared-types';
+import { z } from 'zod';
 
 // Market Overview API endpoint
 export const marketOverview = t.procedure
@@ -84,7 +84,6 @@ export const marketOverview = t.procedure
       });
 
       return marketOverview;
-
     } catch (error) {
       console.error('Error fetching market overview:', error);
 
@@ -153,18 +152,19 @@ export const ohlcv = t.procedure
 
       const data = result.json.reverse(); // Return in chronological order
 
-      const ohlcvData = data.map(item => schemas.OHLCV.parse({
-        timestamp: new Date(item.timestamp).toISOString(),
-        open: parseFloat(item.open),
-        high: parseFloat(item.high),
-        low: parseFloat(item.low),
-        close: parseFloat(item.close),
-        volume: parseFloat(item.volume),
-        tradeCount: parseInt(item.trade_count),
-      }));
+      const ohlcvData = data.map((item) =>
+        schemas.OHLCV.parse({
+          timestamp: new Date(item.timestamp).toISOString(),
+          open: parseFloat(item.open),
+          high: parseFloat(item.high),
+          low: parseFloat(item.low),
+          close: parseFloat(item.close),
+          volume: parseFloat(item.volume),
+          tradeCount: parseInt(item.trade_count),
+        }),
+      );
 
       return ohlcvData;
-
     } catch (error) {
       console.error('Error fetching OHLCV data:', error);
       throw new ExternalServiceError('ClickHouse', 'Failed to fetch OHLCV data');
@@ -248,17 +248,18 @@ export const heatmap = t.procedure
         format: 'JSONEachRow',
       });
 
-      const heatmapData = result.json.map(item => schemas.HeatmapBin.parse({
-        priceBinCenter: parseFloat(item.price_bin_center),
-        priceBinWidth: parseFloat(item.price_bin_width),
-        liquidationVolume: parseFloat(item.liquidation_volume),
-        liquidationCount: parseInt(item.liquidation_count),
-        liquidationNotional: parseFloat(item.liquidation_notional),
-        confidenceScore: Math.min(Math.max(parseFloat(item.confidence_score), 0), 1),
-      }));
+      const heatmapData = result.json.map((item) =>
+        schemas.HeatmapBin.parse({
+          priceBinCenter: parseFloat(item.price_bin_center),
+          priceBinWidth: parseFloat(item.price_bin_width),
+          liquidationVolume: parseFloat(item.liquidation_volume),
+          liquidationCount: parseInt(item.liquidation_count),
+          liquidationNotional: parseFloat(item.liquidation_notional),
+          confidenceScore: Math.min(Math.max(parseFloat(item.confidence_score), 0), 1),
+        }),
+      );
 
       return heatmapData;
-
     } catch (error) {
       console.error('Error fetching heatmap data:', error);
 

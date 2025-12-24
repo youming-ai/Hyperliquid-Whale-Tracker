@@ -1,7 +1,7 @@
-import jwt from 'jsonwebtoken';
 import bcrypt from 'bcrypt';
 import crypto from 'crypto';
-import { Logger } from 'winston';
+import jwt from 'jsonwebtoken';
+import type { Logger } from 'winston';
 
 export interface JWTConfig {
   secret: string;
@@ -93,7 +93,7 @@ export class AuthService {
           typ: 'JWT',
           alg: 'HS256',
         },
-      }
+      },
     );
 
     // Generate refresh token
@@ -110,11 +110,13 @@ export class AuthService {
         issuer: this.jwtConfig.issuer,
         audience: this.jwtConfig.audience,
         algorithm: 'HS256',
-      }
+      },
     );
 
     // Store refresh token data
-    const refreshExpiresAt = new Date(now + this.parseExpiration(this.jwtConfig.refreshExpiresIn) * 1000);
+    const refreshExpiresAt = new Date(
+      now + this.parseExpiration(this.jwtConfig.refreshExpiresIn) * 1000,
+    );
     this.refreshTokens.set(tokenId, {
       userId: user.userId,
       tokenId,
@@ -190,7 +192,7 @@ export class AuthService {
       const userPayload: UserPayload = {
         userId: decoded.sub,
         walletAddr: '', // This would come from database
-        kycLevel: 0,   // This would come from database
+        kycLevel: 0, // This would come from database
         tier: 'freemium',
       };
 
@@ -260,11 +262,16 @@ export class AuthService {
     const value = parseInt(amount, 10);
 
     switch (unit) {
-      case 's': return value;
-      case 'm': return value * 60;
-      case 'h': return value * 3600;
-      case 'd': return value * 86400;
-      default: throw new Error(`Invalid expiration unit: ${unit}`);
+      case 's':
+        return value;
+      case 'm':
+        return value * 60;
+      case 'h':
+        return value * 3600;
+      case 'd':
+        return value * 86400;
+      default:
+        throw new Error(`Invalid expiration unit: ${unit}`);
     }
   }
 
@@ -357,13 +364,13 @@ export class AuthService {
       errors.push('Password must contain at least one number');
     }
 
-    if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) {
+    if (!/[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(password)) {
       errors.push('Password must contain at least one special character');
     }
 
     // Check for common passwords
     const commonPasswords = ['password', '123456', 'qwerty', 'admin', 'letmein'];
-    if (commonPasswords.some(common => password.toLowerCase().includes(common))) {
+    if (commonPasswords.some((common) => password.toLowerCase().includes(common))) {
       errors.push('Password cannot contain common words');
     }
 
@@ -413,7 +420,7 @@ export class AuthService {
     address: string,
     message: string,
     signature: string,
-    nonce: string
+    nonce: string,
   ): Promise<boolean> {
     try {
       // In a real implementation, this would verify the cryptographic signature
@@ -434,7 +441,7 @@ export class AuthService {
     } catch (error) {
       this.logger.error('Wallet signature verification failed', {
         address,
-        error: error.message
+        error: error.message,
       });
       return false;
     }

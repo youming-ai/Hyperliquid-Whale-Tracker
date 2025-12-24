@@ -7,7 +7,7 @@ export class HyperDashError extends TRPCError {
     message: string,
     public readonly details?: any,
     public readonly errorCode?: string,
-    public readonly timestamp: string = new Date().toISOString()
+    public readonly timestamp: string = new Date().toISOString(),
   ) {
     super({ code, message, cause: details });
   }
@@ -25,134 +25,123 @@ export class HyperDashError extends TRPCError {
 }
 
 export class NotFoundError extends HyperDashError {
-  constructor(resource: string, identifier?: string, public readonly resourceType?: string) {
+  constructor(
+    resource: string,
+    identifier?: string,
+    public readonly resourceType?: string,
+  ) {
     super(
       'NOT_FOUND',
       `${resource}${identifier ? ` with ID ${identifier}` : ''} not found`,
       { resource, identifier, resourceType },
-      'RESOURCE_NOT_FOUND'
+      'RESOURCE_NOT_FOUND',
     );
   }
 }
 
 export class ValidationError extends HyperDashError {
-  constructor(message: string, field?: string, public readonly value?: any) {
-    super(
-      'BAD_REQUEST',
-      message,
-      { field, value },
-      'VALIDATION_ERROR'
-    );
+  constructor(
+    message: string,
+    field?: string,
+    public readonly value?: any,
+  ) {
+    super('BAD_REQUEST', message, { field, value }, 'VALIDATION_ERROR');
   }
 }
 
 export class AuthenticationError extends HyperDashError {
-  constructor(message: string = 'Authentication required', public readonly authType?: string) {
-    super(
-      'UNAUTHORIZED',
-      message,
-      { authType },
-      'AUTHENTICATION_ERROR'
-    );
+  constructor(
+    message: string = 'Authentication required',
+    public readonly authType?: string,
+  ) {
+    super('UNAUTHORIZED', message, { authType }, 'AUTHENTICATION_ERROR');
   }
 }
 
 export class AuthorizationError extends HyperDashError {
-  constructor(message: string = 'Access denied', public readonly requiredPermission?: string) {
-    super(
-      'FORBIDDEN',
-      message,
-      { requiredPermission },
-      'AUTHORIZATION_ERROR'
-    );
+  constructor(
+    message: string = 'Access denied',
+    public readonly requiredPermission?: string,
+  ) {
+    super('FORBIDDEN', message, { requiredPermission }, 'AUTHORIZATION_ERROR');
   }
 }
 
 export class RateLimitError extends HyperDashError {
-  constructor(message: string = 'Rate limit exceeded', public readonly retryAfter?: number) {
-    super(
-      'TOO_MANY_REQUESTS',
-      message,
-      { retryAfter },
-      'RATE_LIMIT_ERROR'
-    );
+  constructor(
+    message: string = 'Rate limit exceeded',
+    public readonly retryAfter?: number,
+  ) {
+    super('TOO_MANY_REQUESTS', message, { retryAfter }, 'RATE_LIMIT_ERROR');
   }
 }
 
 export class DatabaseError extends HyperDashError {
-  constructor(message: string = 'Database operation failed', public readonly operation?: string) {
-    super(
-      'INTERNAL_SERVER_ERROR',
-      message,
-      { operation },
-      'DATABASE_ERROR'
-    );
+  constructor(
+    message: string = 'Database operation failed',
+    public readonly operation?: string,
+  ) {
+    super('INTERNAL_SERVER_ERROR', message, { operation }, 'DATABASE_ERROR');
   }
 }
 
 export class ExternalServiceError extends HyperDashError {
-  constructor(service: string, message: string = 'External service error', public readonly serviceCode?: string) {
+  constructor(
+    service: string,
+    message: string = 'External service error',
+    public readonly serviceCode?: string,
+  ) {
     super(
       'INTERNAL_SERVER_ERROR',
       `${service}: ${message}`,
       { service, serviceCode },
-      'EXTERNAL_SERVICE_ERROR'
+      'EXTERNAL_SERVICE_ERROR',
     );
   }
 }
 
 export class BusinessLogicError extends HyperDashError {
-  constructor(message: string, public readonly businessRule?: string) {
-    super(
-      'BAD_REQUEST',
-      message,
-      { businessRule },
-      'BUSINESS_LOGIC_ERROR'
-    );
+  constructor(
+    message: string,
+    public readonly businessRule?: string,
+  ) {
+    super('BAD_REQUEST', message, { businessRule }, 'BUSINESS_LOGIC_ERROR');
   }
 }
 
 export class ConfigurationError extends HyperDashError {
-  constructor(message: string, public readonly configKey?: string) {
-    super(
-      'INTERNAL_SERVER_ERROR',
-      message,
-      { configKey },
-      'CONFIGURATION_ERROR'
-    );
+  constructor(
+    message: string,
+    public readonly configKey?: string,
+  ) {
+    super('INTERNAL_SERVER_ERROR', message, { configKey }, 'CONFIGURATION_ERROR');
   }
 }
 
 export class NetworkError extends HyperDashError {
-  constructor(message: string = 'Network error', public readonly endpoint?: string) {
-    super(
-      'INTERNAL_SERVER_ERROR',
-      message,
-      { endpoint },
-      'NETWORK_ERROR'
-    );
+  constructor(
+    message: string = 'Network error',
+    public readonly endpoint?: string,
+  ) {
+    super('INTERNAL_SERVER_ERROR', message, { endpoint }, 'NETWORK_ERROR');
   }
 }
 
 export class TimeoutError extends HyperDashError {
-  constructor(message: string = 'Operation timed out', public readonly timeout?: number) {
-    super(
-      'INTERNAL_SERVER_ERROR',
-      message,
-      { timeout },
-      'TIMEOUT_ERROR'
-    );
+  constructor(
+    message: string = 'Operation timed out',
+    public readonly timeout?: number,
+  ) {
+    super('INTERNAL_SERVER_ERROR', message, { timeout }, 'TIMEOUT_ERROR');
   }
 }
 
 export class ConcurrencyError extends HyperDashError {
-  constructor(message: string = 'Concurrency conflict', public readonly resource?: string) {
-    super(
-      'CONFLICT',
-      message,
-      { resource },
-      'CONCURRENCY_ERROR'
-    );
+  constructor(
+    message: string = 'Concurrency conflict',
+    public readonly resource?: string,
+  ) {
+    super('CONFLICT', message, { resource }, 'CONCURRENCY_ERROR');
   }
 }
 
@@ -161,27 +150,33 @@ export class ErrorHandler {
   static handleDatabaseError(error: any): never {
     console.error('Database error:', error);
 
-    if (error.code === '23505') { // Unique violation
+    if (error.code === '23505') {
+      // Unique violation
       throw new ValidationError('Resource already exists', undefined, error.detail);
     }
 
-    if (error.code === '23503') { // Foreign key violation
+    if (error.code === '23503') {
+      // Foreign key violation
       throw new ValidationError('Referenced resource does not exist', undefined, error.detail);
     }
 
-    if (error.code === '23502') { // Not null violation
+    if (error.code === '23502') {
+      // Not null violation
       throw new ValidationError('Required field is missing', error.column);
     }
 
-    if (error.code === '23514') { // Check violation
+    if (error.code === '23514') {
+      // Check violation
       throw new ValidationError('Data constraint violation', undefined, error.detail);
     }
 
-    if (error.code === '40P01') { // Deadlock detected
+    if (error.code === '40P01') {
+      // Deadlock detected
       throw new ConcurrencyError('Database deadlock detected, please retry');
     }
 
-    if (error.code === '55P03') { // Lock not available
+    if (error.code === '55P03') {
+      // Lock not available
       throw new ConcurrencyError('Resource is locked, please try again later');
     }
 
@@ -190,21 +185,17 @@ export class ErrorHandler {
   }
 
   static handleValidationError(error: ZodError): never {
-    const fieldErrors = error.errors.map(err => ({
+    const fieldErrors = error.errors.map((err) => ({
       field: err.path.join('.'),
       message: err.message,
       code: err.code,
       received: err.received,
     }));
 
-    throw new ValidationError(
-      'Validation failed',
-      fieldErrors[0]?.field,
-      {
-        validationErrors: fieldErrors,
-        originalError: error.message,
-      }
-    );
+    throw new ValidationError('Validation failed', fieldErrors[0]?.field, {
+      validationErrors: fieldErrors,
+      originalError: error.message,
+    });
   }
 
   static handleExternalServiceError(service: string, error: any): never {
@@ -226,7 +217,7 @@ export class ErrorHandler {
         const retryAfter = error.response.headers['retry-after'];
         throw new RateLimitError(
           `${service} rate limit exceeded`,
-          retryAfter ? parseInt(retryAfter) : undefined
+          retryAfter ? parseInt(retryAfter) : undefined,
         );
       }
 
@@ -238,7 +229,7 @@ export class ErrorHandler {
       throw new ExternalServiceError(
         service,
         data?.message || `Service returned error ${status}`,
-        `HTTP_${status}`
+        `HTTP_${status}`,
       );
     }
 
@@ -262,7 +253,11 @@ export class ErrorHandler {
     }
 
     if (error.type === 'NOT_COORDINATOR_FOR_GROUP') {
-      throw new ExternalServiceError('Kafka', 'Group coordinator not available', 'COORDINATOR_UNAVAILABLE');
+      throw new ExternalServiceError(
+        'Kafka',
+        'Group coordinator not available',
+        'COORDINATOR_UNAVAILABLE',
+      );
     }
 
     if (error.type === 'GROUP_AUTHENTICATION_FAILED') {
@@ -316,12 +311,12 @@ export class ErrorHandler {
 
     // Zod validation errors
     if (error instanceof ZodError) {
-      return this.handleValidationError(error);
+      return ErrorHandler.handleValidationError(error);
     }
 
     // Database errors
     if (error.code && typeof error.code === 'string' && error.code.startsWith('23')) {
-      return this.handleDatabaseError(error);
+      return ErrorHandler.handleDatabaseError(error);
     }
 
     // Network/timeout errors
@@ -339,7 +334,7 @@ export class ErrorHandler {
       'INTERNAL_SERVER_ERROR',
       error.message || 'An unexpected error occurred',
       { originalError: error, context },
-      'UNKNOWN_ERROR'
+      'UNKNOWN_ERROR',
     );
   }
 }
@@ -395,14 +390,17 @@ export function formatErrorResponse(error: any, requestId?: string): ErrorRespon
 
 // Error logging utility
 export class ErrorLogger {
-  static log(error: any, context?: {
-    userId?: string;
-    ip?: string;
-    userAgent?: string;
-    requestId?: string;
-    path?: string;
-    method?: string;
-  }) {
+  static log(
+    error: any,
+    context?: {
+      userId?: string;
+      ip?: string;
+      userAgent?: string;
+      requestId?: string;
+      path?: string;
+      method?: string;
+    },
+  ) {
     const logEntry = {
       timestamp: new Date().toISOString(),
       level: 'ERROR',

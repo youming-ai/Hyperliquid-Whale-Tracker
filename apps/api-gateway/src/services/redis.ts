@@ -1,5 +1,5 @@
 import Redis from 'ioredis';
-import { Logger } from 'winston';
+import type { Logger } from 'winston';
 
 export interface RedisConfig {
   host: string;
@@ -102,7 +102,11 @@ export class RedisClient {
     }
   }
 
-  async healthCheck(): Promise<{ status: 'healthy' | 'unhealthy'; latency?: number; error?: string }> {
+  async healthCheck(): Promise<{
+    status: 'healthy' | 'unhealthy';
+    latency?: number;
+    error?: string;
+  }> {
     const start = Date.now();
 
     try {
@@ -111,12 +115,12 @@ export class RedisClient {
 
       return {
         status: result === 'PONG' ? 'healthy' : 'unhealthy',
-        latency
+        latency,
       };
     } catch (error) {
       return {
         status: 'unhealthy',
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: error instanceof Error ? error.message : 'Unknown error',
       };
     }
   }

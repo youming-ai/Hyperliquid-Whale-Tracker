@@ -1,7 +1,7 @@
-import { Request, Response } from 'express';
+import type { Request, Response } from 'express';
+import { createError } from '../middleware/errorHandler';
 import { SubscriptionService } from '../services/subscriptionService';
 import { logger } from '../utils/logger';
-import { createError } from '../middleware/errorHandler';
 
 const subscriptionService = new SubscriptionService();
 
@@ -42,7 +42,11 @@ export const createSubscription = async (req: Request, res: Response) => {
       throw createError('Payment method ID is required', 400);
     }
 
-    const subscription = await subscriptionService.createSubscription(userId, planId, paymentMethodId);
+    const subscription = await subscriptionService.createSubscription(
+      userId,
+      planId,
+      paymentMethodId,
+    );
 
     res.json({
       success: true,
@@ -69,7 +73,11 @@ export const updateSubscription = async (req: Request, res: Response) => {
       throw createError('Plan ID is required', 400);
     }
 
-    const subscription = await subscriptionService.updateSubscription(userId, subscriptionId, planId);
+    const subscription = await subscriptionService.updateSubscription(
+      userId,
+      subscriptionId,
+      planId,
+    );
 
     res.json({
       success: true,
@@ -92,12 +100,19 @@ export const cancelSubscription = async (req: Request, res: Response) => {
       throw createError('User ID is required', 401);
     }
 
-    const subscription = await subscriptionService.cancelSubscription(userId, subscriptionId, immediate, reason);
+    const subscription = await subscriptionService.cancelSubscription(
+      userId,
+      subscriptionId,
+      immediate,
+      reason,
+    );
 
     res.json({
       success: true,
       data: subscription,
-      message: immediate ? 'Subscription cancelled immediately' : 'Subscription will be cancelled at period end',
+      message: immediate
+        ? 'Subscription cancelled immediately'
+        : 'Subscription will be cancelled at period end',
     });
   } catch (error) {
     logger.error('Error cancelling subscription:', error);

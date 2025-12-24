@@ -73,7 +73,6 @@ async function runClickHouseMigrations() {
     }
 
     console.log('✅ ClickHouse migrations completed successfully!');
-
   } catch (error) {
     console.error('❌ ClickHouse migration failed:', error);
     throw error;
@@ -176,7 +175,6 @@ async function createOptimizations() {
     }
 
     console.log('✅ ClickHouse optimizations completed!');
-
   } catch (error) {
     console.error('❌ Optimization failed:', error);
     // Don't fail the migration for optimization errors

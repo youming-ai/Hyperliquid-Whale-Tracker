@@ -1,7 +1,7 @@
+import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres, { PostgresError } from 'postgres';
 import * as schema from './schema';
-import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 
 export interface DatabaseConfig {
   connectionString: string;
@@ -69,10 +69,11 @@ export class DatabaseConnection {
       console.log('✅ PostgreSQL connection established successfully');
 
       this.isInitialized = true;
-
     } catch (error) {
       console.error('❌ Failed to initialize PostgreSQL connection:', error);
-      throw new Error(`Database connection failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Database connection failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
     }
   }
 
@@ -90,7 +91,11 @@ export class DatabaseConnection {
     return this.client;
   }
 
-  async healthCheck(): Promise<{ status: 'healthy' | 'unhealthy'; latency?: number; error?: string }> {
+  async healthCheck(): Promise<{
+    status: 'healthy' | 'unhealthy';
+    latency?: number;
+    error?: string;
+  }> {
     try {
       if (!this.client) {
         return { status: 'unhealthy', error: 'Client not initialized' };
@@ -104,7 +109,7 @@ export class DatabaseConnection {
     } catch (error) {
       return {
         status: 'unhealthy',
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: error instanceof Error ? error.message : 'Unknown error',
       };
     }
   }
@@ -125,9 +130,7 @@ export class DatabaseConnection {
   }
 
   // Transaction helper
-  async transaction<T>(
-    callback: (tx: NodePgDatabase<typeof schema>) => Promise<T>
-  ): Promise<T> {
+  async transaction<T>(callback: (tx: NodePgDatabase<typeof schema>) => Promise<T>): Promise<T> {
     if (!this.db) {
       throw new Error('Database not initialized');
     }
@@ -178,7 +181,8 @@ let dbInstance: DatabaseConnection | null = null;
 export function createDatabaseConnection(config?: DatabaseConfig): DatabaseConnection {
   if (!dbInstance) {
     const defaultConfig: DatabaseConfig = {
-      connectionString: process.env.DATABASE_URL ||
+      connectionString:
+        process.env.DATABASE_URL ||
         'postgresql://hyperdash:hyperdash_password@localhost:5432/hyperdash',
       maxConnections: parseInt(process.env.DATABASE_MAX_CONNECTIONS || '10'),
       idleTimeout: parseInt(process.env.DATABASE_IDLE_TIMEOUT || '30000'),

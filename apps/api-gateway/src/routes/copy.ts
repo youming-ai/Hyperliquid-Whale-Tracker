@@ -1,11 +1,11 @@
-import { z } from 'zod';
-import { t, protectedProcedure, kycProcedure } from '@hyperdash/contracts';
+import { kycProcedure, protectedProcedure, t } from '@hyperdash/contracts';
 import {
-  CopyStrategySchema,
   CopyAllocationSchema,
   CopyPerformanceSchema,
-  schemas
+  CopyStrategySchema,
+  schemas,
 } from '@hyperdash/shared-types';
+import { z } from 'zod';
 
 /**
  * Copy Trading Router
@@ -15,11 +15,13 @@ import {
 export const copyRouter = t.router({
   // Get user's copy strategies
   strategies: protectedProcedure
-    .input(z.object({
-      status: z.enum(['active', 'paused', 'error', 'terminated', 'all']).default('all'),
-      limit: z.number().min(1).max(50).default(20),
-      offset: z.number().min(0).default(0),
-    }))
+    .input(
+      z.object({
+        status: z.enum(['active', 'paused', 'error', 'terminated', 'all']).default('all'),
+        limit: z.number().min(1).max(50).default(20),
+        offset: z.number().min(0).default(0),
+      }),
+    )
     .query(async ({ input, ctx }) => {
       const { status, limit, offset } = input;
       const userId = ctx.user!.userId;
@@ -65,31 +67,37 @@ export const copyRouter = t.router({
         updatedAt: new Date(Date.now() - Math.random() * 86400000).toISOString(),
       }));
 
-      return mockStrategies.map(strategy => schemas.CopyStrategy.parse(strategy));
+      return mockStrategies.map((strategy) => schemas.CopyStrategy.parse(strategy));
     }),
 
   // Create a new copy strategy
   createStrategy: kycProcedure(1)
-    .input(z.object({
-      name: z.string().min(1).max(100),
-      description: z.string().max(500).optional(),
-      mode: z.enum(['portfolio', 'single_trader']).default('portfolio'),
-      riskParams: z.object({
-        maxLeverage: z.number().min(1).max(10).default(3.0),
-        maxPositionUsd: z.number().positive().optional(),
-        slippageBps: z.number().min(0).max(100).default(10),
-        minOrderUsd: z.number().positive().default(100),
+    .input(
+      z.object({
+        name: z.string().min(1).max(100),
+        description: z.string().max(500).optional(),
+        mode: z.enum(['portfolio', 'single_trader']).default('portfolio'),
+        riskParams: z.object({
+          maxLeverage: z.number().min(1).max(10).default(3.0),
+          maxPositionUsd: z.number().positive().optional(),
+          slippageBps: z.number().min(0).max(100).default(10),
+          minOrderUsd: z.number().positive().default(100),
+        }),
+        settings: z.object({
+          followNewEntriesOnly: z.boolean().default(true),
+          autoRebalance: z.boolean().default(true),
+          rebalanceThresholdBps: z.number().min(0).max(500).default(50),
+        }),
+        allocations: z
+          .array(
+            z.object({
+              traderId: z.string(),
+              weight: z.number().min(0).max(1),
+            }),
+          )
+          .min(1),
       }),
-      settings: z.object({
-        followNewEntriesOnly: z.boolean().default(true),
-        autoRebalance: z.boolean().default(true),
-        rebalanceThresholdBps: z.number().min(0).max(500).default(50),
-      }),
-      allocations: z.array(z.object({
-        traderId: z.string(),
-        weight: z.number().min(0).max(1),
-      })).min(1),
-    }))
+    )
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.user!.userId;
       const { name, description, mode, riskParams, settings, allocations } = input;
@@ -97,7 +105,7 @@ export const copyRouter = t.router({
       // Validate allocations sum to 1.0
       const totalWeight = allocations.reduce((sum, alloc) => sum + alloc.weight, 0);
       if (Math.abs(totalWeight - 1.0) > 0.0001) {
-        throw new Error("Allocation weights must sum to 1.0");
+        throw new Error('Allocation weights must sum to 1.0');
       }
 
       // Implementation will create strategy in PostgreSQL
@@ -117,7 +125,7 @@ export const copyRouter = t.router({
           alignmentRate: 100,
           totalTrades: 0,
         },
-        allocations: allocations.map(alloc => ({
+        allocations: allocations.map((alloc) => ({
           ...alloc,
           performance: { allocatedPnl: 0, allocatedFees: 0 },
         })),
@@ -131,23 +139,29 @@ export const copyRouter = t.router({
 
   // Update copy strategy
   updateStrategy: protectedProcedure
-    .input(z.object({
-      strategyId: z.string(),
-      name: z.string().min(1).max(100).optional(),
-      description: z.string().max(500).optional(),
-      status: z.enum(['active', 'paused', 'terminated']).optional(),
-      riskParams: z.object({
-        maxLeverage: z.number().min(1).max(10),
-        maxPositionUsd: z.number().positive().optional(),
-        slippageBps: z.number().min(0).max(100),
-        minOrderUsd: z.number().positive(),
-      }).optional(),
-      settings: z.object({
-        followNewEntriesOnly: z.boolean(),
-        autoRebalance: z.boolean(),
-        rebalanceThresholdBps: z.number().min(0).max(500),
-      }).optional(),
-    }))
+    .input(
+      z.object({
+        strategyId: z.string(),
+        name: z.string().min(1).max(100).optional(),
+        description: z.string().max(500).optional(),
+        status: z.enum(['active', 'paused', 'terminated']).optional(),
+        riskParams: z
+          .object({
+            maxLeverage: z.number().min(1).max(10),
+            maxPositionUsd: z.number().positive().optional(),
+            slippageBps: z.number().min(0).max(100),
+            minOrderUsd: z.number().positive(),
+          })
+          .optional(),
+        settings: z
+          .object({
+            followNewEntriesOnly: z.boolean(),
+            autoRebalance: z.boolean(),
+            rebalanceThresholdBps: z.number().min(0).max(500),
+          })
+          .optional(),
+      }),
+    )
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.user!.userId;
       const { strategyId, ...updates } = input;
@@ -166,11 +180,13 @@ export const copyRouter = t.router({
 
   // Get copy strategy performance analytics
   performance: protectedProcedure
-    .input(z.object({
-      strategyId: z.string(),
-      timeframe: z.enum(['1d', '7d', '30d', '90d', 'all']).default('30d'),
-      granularity: z.enum(['hour', 'day']).default('day'),
-    }))
+    .input(
+      z.object({
+        strategyId: z.string(),
+        timeframe: z.enum(['1d', '7d', '30d', '90d', 'all']).default('30d'),
+        granularity: z.enum(['hour', 'day']).default('day'),
+      }),
+    )
     .query(async ({ input, ctx }) => {
       const { strategyId, timeframe, granularity } = input;
       const userId = ctx.user!.userId;
@@ -210,7 +226,7 @@ export const copyRouter = t.router({
             allocatedFees: 720,
             alignmentRate: 97.2,
             tradeCount: 87,
-            contribution: 0.60,
+            contribution: 0.6,
           },
           {
             traderId: 'trader_2',
@@ -219,7 +235,7 @@ export const copyRouter = t.router({
             allocatedFees: 480,
             alignmentRate: 95.8,
             tradeCount: 58,
-            contribution: 0.40,
+            contribution: 0.4,
           },
         ],
       };
@@ -229,12 +245,14 @@ export const copyRouter = t.router({
 
   // Get copy execution history
   executionHistory: protectedProcedure
-    .input(z.object({
-      strategyId: z.string(),
-      limit: z.number().min(1).max(100).default(50),
-      offset: z.number().min(0).default(0),
-      status: z.enum(['success', 'failed', 'partial', 'all']).default('all'),
-    }))
+    .input(
+      z.object({
+        strategyId: z.string(),
+        limit: z.number().min(1).max(100).default(50),
+        offset: z.number().min(0).default(0),
+        status: z.enum(['success', 'failed', 'partial', 'all']).default('all'),
+      }),
+    )
     .query(async ({ input, ctx }) => {
       const { strategyId, limit, offset, status } = input;
       const userId = ctx.user!.userId;
@@ -260,18 +278,22 @@ export const copyRouter = t.router({
         timestamp: new Date(Date.now() - (offset + i) * 300000).toISOString(),
       }));
 
-      return mockHistory.map(execution => schemas.CopyExecution.parse(execution));
+      return mockHistory.map((execution) => schemas.CopyExecution.parse(execution));
     }),
 
   // Update strategy allocations
   updateAllocations: protectedProcedure
-    .input(z.object({
-      strategyId: z.string(),
-      allocations: z.array(z.object({
-        traderId: z.string(),
-        weight: z.number().min(0).max(1),
-      })),
-    }))
+    .input(
+      z.object({
+        strategyId: z.string(),
+        allocations: z.array(
+          z.object({
+            traderId: z.string(),
+            weight: z.number().min(0).max(1),
+          }),
+        ),
+      }),
+    )
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.user!.userId;
       const { strategyId, allocations } = input;
@@ -279,7 +301,7 @@ export const copyRouter = t.router({
       // Validate allocations sum to 1.0
       const totalWeight = allocations.reduce((sum, alloc) => sum + alloc.weight, 0);
       if (Math.abs(totalWeight - 1.0) > 0.0001) {
-        throw new Error("Allocation weights must sum to 1.0");
+        throw new Error('Allocation weights must sum to 1.0');
       }
 
       // Implementation will update allocations in PostgreSQL
@@ -296,12 +318,14 @@ export const copyRouter = t.router({
 
   // Get copy trading recommendations
   recommendations: protectedProcedure
-    .input(z.object({
-      riskTolerance: z.enum(['low', 'medium', 'high']).default('medium'),
-      targetReturn: z.number().optional(),
-      maxDrawdown: z.number().optional(),
-      excludeTraders: z.array(z.string()).optional(),
-    }))
+    .input(
+      z.object({
+        riskTolerance: z.enum(['low', 'medium', 'high']).default('medium'),
+        targetReturn: z.number().optional(),
+        maxDrawdown: z.number().optional(),
+        excludeTraders: z.array(z.string()).optional(),
+      }),
+    )
     .query(async ({ input, ctx }) => {
       const { riskTolerance, targetReturn, maxDrawdown, excludeTraders } = input;
       const userId = ctx.user!.userId;
@@ -316,7 +340,11 @@ export const copyRouter = t.router({
           expectedReturn: 0.15,
           maxDrawdown: 0.05,
           suggestedAllocation: [
-            { traderId: 'trader_stable_1', weight: 0.5, reason: 'Consistent performer with low volatility' },
+            {
+              traderId: 'trader_stable_1',
+              weight: 0.5,
+              reason: 'Consistent performer with low volatility',
+            },
             { traderId: 'trader_stable_2', weight: 0.3, reason: 'Solid risk management' },
             { traderId: 'trader_stable_3', weight: 0.2, reason: 'Diversification benefits' },
           ],
@@ -341,19 +369,23 @@ export const copyRouter = t.router({
           maxDrawdown: 0.25,
           suggestedAllocation: [
             { traderId: 'trader_aggressive_1', weight: 0.6, reason: 'High alpha generation' },
-            { traderId: 'trader_aggressive_2', weight: 0.4, reason: 'Specialized in volatile assets' },
+            {
+              traderId: 'trader_aggressive_2',
+              weight: 0.4,
+              reason: 'Specialized in volatile assets',
+            },
           ],
         },
       ];
 
       // Filter based on user's risk tolerance
-      const filtered = mockRecommendations.filter(rec => rec.riskTolerance === riskTolerance);
+      const filtered = mockRecommendations.filter((rec) => rec.riskTolerance === riskTolerance);
 
       return {
-        recommendations: filtered.map(rec => schemas.CopyRecommendation.parse(rec)),
+        recommendations: filtered.map((rec) => schemas.CopyRecommendation.parse(rec)),
         userProfile: {
           riskTolerance,
-          expectedReturn: targetReturn || 0.20,
+          expectedReturn: targetReturn || 0.2,
           maxDrawdown: maxDrawdown || 0.15,
         },
         generatedAt: new Date().toISOString(),
@@ -362,10 +394,12 @@ export const copyRouter = t.router({
 
   // Start/stop copy strategy
   toggleStrategy: protectedProcedure
-    .input(z.object({
-      strategyId: z.string(),
-      action: z.enum(['start', 'pause', 'terminate']),
-    }))
+    .input(
+      z.object({
+        strategyId: z.string(),
+        action: z.enum(['start', 'pause', 'terminate']),
+      }),
+    )
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.user!.userId;
       const { strategyId, action } = input;

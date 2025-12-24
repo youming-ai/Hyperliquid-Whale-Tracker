@@ -80,10 +80,9 @@ chmod +x scripts/setup.sh
 ./scripts/setup.sh
 ```
 
-### 3. Environment Configuration
+### 3. Install Dependencies
 ```bash
-cp .env.example .env
-# Edit .env with your configuration
+bun install
 ```
 
 ### 4. Get Hyperliquid API Keys
@@ -97,11 +96,11 @@ cp .env.example .env
 
 ### 5. Start Development Environment
 ```bash
-./start-dev.sh
+bun dev
 ```
 
 ### 6. Access the Application
-- **Frontend**: http://localhost:3001
+- **Frontend**: http://localhost:5173
 - **API Gateway**: http://localhost:3000
 - **Grafana**: http://localhost:3002 (admin/admin)
 - **Prometheus**: http://localhost:9090
@@ -111,13 +110,14 @@ cp .env.example .env
 ```
 hyperdash-platform/
 ├── apps/                    # Application services
-│   ├── web/                # Next.js frontend
+│   ├── web/                # TanStack Start frontend
 │   ├── api-gateway/        # tRPC API gateway
 │   ├── data-ingestion/     # Market data service
 │   ├── analytics/          # Analytics service
 │   ├── copy-engine/        # Go trading engine
 │   └── billing/            # Billing service
 ├── packages/               # Shared packages
+│   ├── ui/                 # Shared UI components (coss UI)
 │   ├── shared-types/       # TypeScript types
 │   ├── database/           # Database schemas
 │   └── contracts/          # API contracts
@@ -132,19 +132,18 @@ hyperdash-platform/
 
 ```bash
 # Development
-npm run dev              # Start all services in development mode
-npm run build            # Build all packages and applications
-npm run start            # Start production servers
+bun dev                 # Start web and api-gateway
+bun run dev:all         # Start all services
+bun run build           # Build all packages and applications
 
 # Database
-npm run db:migrate       # Run database migrations
-npm run db:seed          # Seed database with sample data
+bun run db:migrate      # Run database migrations
 
 # Code Quality
-npm run lint             # Run ESLint
-npm run lint:fix         # Fix linting issues
-npm run format           # Format code with Prettier
-npm run type-check       # TypeScript type checking
+bun run lint            # Run Biome lint
+bun run format          # Format code with Biome
+bun run type-check      # TypeScript type checking
+```
 
 # Testing
 npm run test             # Run tests

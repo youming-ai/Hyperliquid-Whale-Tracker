@@ -1,6 +1,6 @@
 import { TRPCError } from '@trpc/server';
-import { SignJWT, jwtVerify } from 'jose';
-import type { Context, AuthContext } from '../types';
+import { jwtVerify, SignJWT } from 'jose';
+import type { AuthContext, Context } from '../types';
 
 export interface AuthContext {
   userId: string;
@@ -42,7 +42,7 @@ class TokenManager {
     const fullPayload: JWTPayload = {
       ...payload,
       iat: now,
-      exp: now + (24 * 60 * 60), // 24 hours
+      exp: now + 24 * 60 * 60, // 24 hours
     };
 
     return await new SignJWT(fullPayload)
@@ -106,11 +106,9 @@ export async function createAuthContext(token: string): Promise<AuthContext> {
   };
 }
 
-export function createAuthMiddleware(options: {
-  required?: boolean;
-  minKycLevel?: number;
-  permissions?: string[];
-} = {}) {
+export function createAuthMiddleware(
+  options: { required?: boolean; minKycLevel?: number; permissions?: string[] } = {},
+) {
   const { required = false, minKycLevel = 0, permissions = [] } = options;
 
   return async ({ ctx, next }: { ctx: Context; next: any }) => {
@@ -145,8 +143,8 @@ export function createAuthMiddleware(options: {
 
       // Check permissions requirement
       if (permissions.length > 0) {
-        const hasRequiredPermissions = permissions.every(permission =>
-          authContext.permissions.includes(permission)
+        const hasRequiredPermissions = permissions.every((permission) =>
+          authContext.permissions.includes(permission),
         );
 
         if (!hasRequiredPermissions) {
@@ -187,15 +185,15 @@ export const requireKYC1 = createAuthMiddleware({ required: true, minKycLevel: 1
 export const requireKYC2 = createAuthMiddleware({ required: true, minKycLevel: 2 });
 export const requireTrading = createAuthMiddleware({
   required: true,
-  permissions: ['trading']
+  permissions: ['trading'],
 });
 export const requireWithdrawal = createAuthMiddleware({
   required: true,
-  permissions: ['withdrawal']
+  permissions: ['withdrawal'],
 });
 export const requireAdmin = createAuthMiddleware({
   required: true,
-  permissions: ['admin']
+  permissions: ['admin'],
 });
 
 // Token utilities

@@ -60,11 +60,13 @@ export const TraderSchema = z.object({
     maxLeverage: z.number(),
     var95: z.number(),
   }),
-  symbolPreferences: z.array(z.object({
-    symbol: z.string(),
-    volumePct: z.number(),
-    pnl: z.number(),
-  })),
+  symbolPreferences: z.array(
+    z.object({
+      symbol: z.string(),
+      volumePct: z.number(),
+      pnl: z.number(),
+    }),
+  ),
 });
 
 // Copy Trading Schemas

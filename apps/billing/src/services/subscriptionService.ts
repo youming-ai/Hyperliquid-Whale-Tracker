@@ -1,8 +1,8 @@
+import stripe from 'stripe';
+import { config } from '../config';
+import { logger } from '../utils/logger';
 import { PostgreSQLService } from './postgreService';
 import { RedisService } from './redisService';
-import { logger } from '../utils/logger';
-import { config } from '../config';
-import stripe from 'stripe';
 
 export class SubscriptionService {
   private postgresService: PostgreSQLService;
@@ -101,7 +101,9 @@ export class SubscriptionService {
     }
 
     // Update Stripe subscription
-    const stripeSubscription = await this.stripe.subscriptions.retrieve(subscription.stripe_subscription_id);
+    const stripeSubscription = await this.stripe.subscriptions.retrieve(
+      subscription.stripe_subscription_id,
+    );
 
     // Find the subscription item
     const subscriptionItem = stripeSubscription.items.data[0];
@@ -122,12 +124,14 @@ export class SubscriptionService {
     const updatedStripeSubscription = await this.stripe.subscriptions.update(
       subscription.stripe_subscription_id,
       {
-        items: [{
-          id: subscriptionItem.id,
-          price: newPrice.id,
-        }],
+        items: [
+          {
+            id: subscriptionItem.id,
+            price: newPrice.id,
+          },
+        ],
         proration_behavior: 'create_prorations',
-      }
+      },
     );
 
     // Update database
@@ -144,7 +148,12 @@ export class SubscriptionService {
     return updatedSubscription;
   }
 
-  async cancelSubscription(userId: string, subscriptionId: string, immediate: boolean = false, reason?: string) {
+  async cancelSubscription(
+    userId: string,
+    subscriptionId: string,
+    immediate: boolean = false,
+    reason?: string,
+  ) {
     const subscription = await this.postgresService.getSubscription(subscriptionId);
 
     if (!subscription || subscription.user_id !== userId) {
@@ -155,14 +164,16 @@ export class SubscriptionService {
 
     if (immediate) {
       // Cancel immediately
-      updatedStripeSubscription = await this.stripe.subscriptions.cancel(subscription.stripe_subscription_id);
+      updatedStripeSubscription = await this.stripe.subscriptions.cancel(
+        subscription.stripe_subscription_id,
+      );
     } else {
       // Cancel at period end
       updatedStripeSubscription = await this.stripe.subscriptions.update(
         subscription.stripe_subscription_id,
         {
           cancel_at_period_end: true,
-        }
+        },
       );
     }
 
@@ -196,7 +207,7 @@ export class SubscriptionService {
       {
         cancel_at_period_end: false,
         trial_end: 'now',
-      }
+      },
     );
 
     // Update database
@@ -233,7 +244,9 @@ export class SubscriptionService {
   async handleSubscriptionPaymentSucceeded(invoice: stripe.Invoice) {
     if (!invoice.subscription) return;
 
-    const subscription = await this.postgresService.getSubscriptionByStripeId(invoice.subscription as string);
+    const subscription = await this.postgresService.getSubscriptionByStripeId(
+      invoice.subscription as string,
+    );
     if (!subscription) return;
 
     // Update subscription status
@@ -251,7 +264,9 @@ export class SubscriptionService {
   async handleSubscriptionPaymentFailed(invoice: stripe.Invoice) {
     if (!invoice.subscription) return;
 
-    const subscription = await this.postgresService.getSubscriptionByStripeId(invoice.subscription as string);
+    const subscription = await this.postgresService.getSubscriptionByStripeId(
+      invoice.subscription as string,
+    );
     if (!subscription) return;
 
     // Update subscription status
@@ -267,7 +282,9 @@ export class SubscriptionService {
   }
 
   async handleSubscriptionCreated(stripeSubscription: stripe.Subscription) {
-    const subscription = await this.postgresService.getSubscriptionByStripeId(stripeSubscription.id);
+    const subscription = await this.postgresService.getSubscriptionByStripeId(
+      stripeSubscription.id,
+    );
     if (!subscription) return;
 
     // Update status
@@ -282,7 +299,9 @@ export class SubscriptionService {
   }
 
   async handleSubscriptionUpdated(stripeSubscription: stripe.Subscription) {
-    const subscription = await this.postgresService.getSubscriptionByStripeId(stripeSubscription.id);
+    const subscription = await this.postgresService.getSubscriptionByStripeId(
+      stripeSubscription.id,
+    );
     if (!subscription) return;
 
     // Update subscription
@@ -299,7 +318,9 @@ export class SubscriptionService {
   }
 
   async handleSubscriptionDeleted(stripeSubscription: stripe.Subscription) {
-    const subscription = await this.postgresService.getSubscriptionByStripeId(stripeSubscription.id);
+    const subscription = await this.postgresService.getSubscriptionByStripeId(
+      stripeSubscription.id,
+    );
     if (!subscription) return;
 
     // Update subscription
