@@ -1,21 +1,60 @@
 # HyperDash Platform
 
-Data intelligence and copy trading platform for the Hyperliquid derivatives ecosystem.
+Data intelligence and copy trading platform for Hyperliquid derivatives ecosystem.
+
+## Architecture
+
+```
+┌─────────────┐    ┌─────────────┐    ┌─────────────┐
+│     Web     │◄──►│ API Gateway │◄──►│ Copy Engine │
+│  (TanStack) │    │   (Hono)    │    │    (Go)     │
+└─────────────┘    └─────────────┘    └─────────────┘
+       │                   │                   │
+       └───────────────────┼───────────────────┘
+                           ▼
+                   ┌──────────────┐
+                   │  PostgreSQL  │
+                   │  ClickHouse  │
+                   │    Redis     │
+                   └──────────────┘
+```
 
 ## Tech Stack
 
 - **Frontend**: TanStack Start, Vite, React, TypeScript, Tailwind CSS
-- **Backend**: Hono, Bun/Node.js, Go (copy engine)
+- **Backend**: Hono, Bun/Node.js
+- **Trading Engine**: Go
 - **Database**: PostgreSQL (Drizzle ORM), ClickHouse, Redis
-- **Package Manager**: pnpm workspaces
-- **Build Tool**: Turborepo
+- **Build**: Turborepo, pnpm workspaces
 - **Linting**: Biome
+
+## Apps
+
+| App | Description | Port |
+|-----|-------------|------|
+| `web` | TanStack Start frontend | 5173 |
+| `api-gateway` | Hono API | 3000 |
+| `copy-engine` | Go trading engine | 3006 |
+
+## Packages
+
+| Package | Description |
+|---------|-------------|
+| `shared-types` | TypeScript types |
+| `database` | Drizzle schemas (PostgreSQL + ClickHouse) |
+| `contracts` | API contracts |
 
 ## Quick Start
 
 ```bash
 # Install dependencies
 pnpm install
+
+# Start infrastructure (Postgres, ClickHouse, Redis)
+pnpm docker:up
+
+# Run migrations
+pnpm db:migrate
 
 # Start development
 pnpm dev
@@ -29,43 +68,32 @@ pnpm dev
 
 | Command | Description |
 |---------|-------------|
-| `pnpm dev` | Start web + api-gateway |
-| `pnpm dev:web` | Start web only |
-| `pnpm dev:api` | Start api-gateway only |
-| `pnpm build` | Build all packages/apps |
-| `pnpm lint` | Run Biome linter |
+| `pnpm dev` | Start web + api |
+| `pnpm build` | Build all |
+| `pnpm lint` | Biome check |
 | `pnpm format` | Format code |
-| `pnpm type-check` | TypeScript type checking |
-| `pnpm db:migrate` | Run database migrations |
+| `pnpm type-check` | TypeScript check |
+| `pnpm db:migrate` | Database migrations |
 | `pnpm docker:up` | Start Docker services |
-| `pnpm docker:down` | Stop Docker services |
 
 ## Project Structure
 
 ```
 ├── apps/
-│   ├── web/            # TanStack Start frontend (Vite)
-│   ├── api-gateway/    # Hono API gateway
-│   ├── data-ingestion/ # Market data service
-│   ├── analytics/      # Analytics service
-│   ├── billing/        # Stripe billing
-│   └── copy-engine/    # Go trading engine
+│   ├── web/            # Frontend
+│   ├── api-gateway/    # API
+│   └── copy-engine/    # Trading engine
 ├── packages/
-│   ├── ui/             # Shared UI components (coss UI)
-│   ├── shared-types/   # TypeScript types
-│   ├── database/       # Drizzle schemas
+│   ├── shared-types/   # Types
+│   ├── database/       # Schemas
 │   └── contracts/      # API contracts
-└── docs/               # Documentation
+├── docs/               # Documentation
+└── docker-compose.yml  # Infrastructure
 ```
-
-## Deployment
-
-See [docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md) for Cloudflare + VPS + Supabase deployment guide.
 
 ## Environment
 
 Copy `.env.example` to `.env` and configure:
-- Database URLs (PostgreSQL, ClickHouse, Redis)
+- Database URLs
 - JWT secrets
 - Hyperliquid API keys
-- Stripe keys (billing)
