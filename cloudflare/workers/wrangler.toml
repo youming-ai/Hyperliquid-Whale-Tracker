@@ -1,0 +1,51 @@
+{
+  "name": "hyperdash-api",
+  "compatibility_date": "2024-01-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "main": "src/index.ts",
+  "account_id": "your-account-id",
+  "vars": {
+    "ENVIRONMENT": "production",
+    "SUPABASE_URL": "https://your-project-ref.supabase.co",
+    "SUPABASE_ANON_KEY": "your-anon-key",
+    "UPSTASH_REDIS_REST_URL": "https://your-redis.upstash.io",
+    "HYPERLIQUID_API_URL": "https://api.hyperliquid.xyz/info"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "hyperdash-cache",
+      "database_id": "your-d1-database-id"
+    }
+  ],
+  "kv_namespaces": [
+    {
+      "binding": "KV_CACHE",
+      "id": "your-kv-namespace-id"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "R2_STORAGE",
+      "bucket_name": "hyperdash-storage"
+    }
+  ],
+  "routes": [
+    {
+      "pattern": "https://api.your-domain.com/*",
+      "zone_name": "your-domain.com"
+    }
+  ],
+  "triggers_cron": [
+    {
+      "cron": "*/5 * * * *",
+      "pattern": "sync-market-data"
+    }
+  ],
+  "observability": {
+    "enabled": true
+  },
+  "limits": {
+    "cpu_ms": 50
+  }
+}

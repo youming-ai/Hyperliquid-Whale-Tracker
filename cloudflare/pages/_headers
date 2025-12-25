@@ -1,0 +1,85 @@
+# Cloudflare Pages Configuration for HyperDash Web App
+# https://developers.cloudflare.com/pages/configuration
+
+# Build configuration
+build_command = "pnpm --filter=web build"
+output_directory = "apps/web/.output"
+
+# Preview deployments
+preview_branch_includes = ["*", "!main"]
+preview_deployment_setting = "custom"
+
+# Production deployment
+production_branch = "main"
+production_deployment_setting = "custom"
+
+# Environment variables (all environments)
+[env.production]
+[env.preview]
+
+# Production environment variables
+[env.production.vars]
+NODE_ENV = "production"
+NEXT_PUBLIC_API_URL = "https://api.your-domain.com"
+NEXT_PUBLIC_WS_URL = "wss://api.your-domain.com"
+NEXT_PUBLIC_SUPABASE_URL = "https://your-project-ref.supabase.co"
+NEXT_PUBLIC_SUPABASE_ANON_KEY = "your-anon-key"
+NEXT_PUBLIC_ENVIRONMENT = "production"
+
+# Preview environment variables
+[env.preview.vars]
+NODE_ENV = "preview"
+NEXT_PUBLIC_API_URL = "https://preview-api.your-domain.com"
+NEXT_PUBLIC_WS_URL = "wss://preview-api.your-domain.com"
+NEXT_PUBLIC_SUPABASE_URL = "https://your-project-ref.supabase.co"
+NEXT_PUBLIC_SUPABASE_ANON_KEY = "your-anon-key"
+NEXT_PUBLIC_ENVIRONMENT = "preview"
+
+# Headers
+[[env.production.headers]]
+for = "/*"
+[env.production.headers.values]
+X-Frame-Options = "DENY"
+X-Content-Type-Options = "nosniff"
+X-XSS-Protection = "1; mode=block"
+Referrer-Policy = "strict-origin-when-cross-origin"
+Permissions-Policy = "camera=(), microphone=(), geolocation=()"
+
+[[env.preview.headers]]
+for = "/*"
+[env.preview.headers.values]
+X-Frame-Options = "SAMEORIGIN"
+X-Content-Type-Options = "nosniff"
+
+# Redirects
+[[redirects]]
+from = "/api/*"
+to = "https://api.your-domain.com/:splat"
+status = 200
+force = true
+
+[[redirects]]
+from = "/ws"
+to = "wss://api.your-domain.com/ws"
+status = 200
+force = true
+
+# Plugins
+[[plugins]]
+package = "@cloudflare/next-on-pages"
+
+# Rules
+[env.production.rules]
+[[env.production.rules]]
+type = "cache"
+status = 200
+pattern = "/assets/*"
+cache_key = "[url]"
+cache_ttl = 2592000
+
+[[env.production.rules]]
+type = "cache"
+status = 200
+pattern = "/_next/static/*"
+cache_key = "[url]"
+cache_ttl = 2592000

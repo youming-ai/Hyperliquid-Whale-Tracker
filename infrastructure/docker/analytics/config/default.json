@@ -1,0 +1,63 @@
+{
+  "clickhouse": {
+    "host": "clickhouse",
+    "port": 8123,
+    "database": "hyperdash_analytics",
+    "user": "default",
+    "password": "",
+    "connectionTimeout": 10000,
+    "requestTimeout": 30000
+  },
+  "redis": {
+    "host": "redis",
+    "port": 6379,
+    "password": "",
+    "db": 0,
+    "keyPrefix": "hyperdash:analytics:",
+    "connectTimeout": 10000,
+    "commandTimeout": 5000
+  },
+  "kafka": {
+    "brokers": ["redpanda:9092"],
+    "clientId": "hyperdash-analytics",
+    "groupId": "hyperdash-analytics-consumers",
+    "topics": {
+      "market-analytics": "market-analytics-topic",
+      "trader-analytics": "trader-analytics-topic",
+      "platform-metrics": "platform-metrics-topic"
+    }
+  },
+  "flink": {
+    "checkpointInterval": 60000,
+    "checkpointTimeout": 300000,
+    "stateBackend": "rocksdb",
+    "stateStoragePath": "/tmp/flink-checkpoints"
+  },
+  "analytics": {
+    "windowSizes": {
+      "short": "5m",
+      "medium": "1h",
+      "long": "1d",
+      "extended": "7d"
+    },
+    "aggregation": {
+      "batchSize": 1000,
+      "flushInterval": 30000,
+      "enableMaterializedViews": true
+    },
+  },
+  "metrics": {
+    "enabled": true,
+    "exportInterval": 60000,
+    "retentionDays": 30
+  },
+  "logging": {
+    "level": "info",
+    "format": "json",
+    "enableConsole": true,
+    "enableFile": true,
+    "logDir": "./logs",
+    "maxSize": "20m",
+    "maxFiles": "14d"
+  }
+}

@@ -1,0 +1,15 @@
+# Cloudflare Pages Redirects
+# https://developers.cloudflare.com/pages/configuration/redirects
+
+# API proxy to backend (VPS)
+/api/* https://api.your-domain.com/:splat 200
+/ws wss://api.your-domain.com/ws 200
+
+# Trailing slash normalization
+/*.html /:splat/ 301
+
+# Old routes redirect (if any)
+/old-route /new-route 301
+
+# Force HTTPS
+http://* https://:host 301

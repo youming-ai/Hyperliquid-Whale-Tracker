@@ -1,0 +1,115 @@
+{
+  "$schema": "https://dokploy.com/schema.json",
+  "version": "1.0.0",
+  "projectName": "hyperdash-platform",
+  "description": "Hyperliquid Whale Tracker - Data Intelligence Platform",
+
+  "services": [
+    {
+      "name": "api-gateway",
+      "type": "node",
+      "buildCommand": "pnpm --filter=@hyperdash/api-gateway build",
+      "startCommand": "pnpm --filter=@hyperdash/api-gateway start",
+      "env": [
+        { "key": "NODE_ENV", "value": "production" },
+        { "key": "PORT", "value": "3000" },
+        { "key": "DATABASE_URL", "secret": true },
+        { "key": "REDIS_URL", "secret": true },
+        { "key": "JWT_SECRET", "secret": true }
+      ],
+      "ports": [3000],
+      "healthCheckPath": "/health",
+      "autoDeploy": true,
+      "domain": "api.your-domain.com"
+    },
+    {
+      "name": "data-ingestion",
+      "type": "node",
+      "buildCommand": "pnpm --filter=@hyperdash/data-ingestion build",
+      "startCommand": "pnpm --filter=@hyperdash/data-ingestion start",
+      "env": [
+        { "key": "NODE_ENV", "value": "production" },
+        { "key": "PORT", "value": "3003" },
+        { "key": "CLICKHOUSE_URL", "secret": true },
+        { "key": "REDIS_URL", "secret": true },
+        { "key": "HYPERLIQUID_API_URL", "value": "https://api.hyperliquid.xyz/info" },
+        { "key": "HYPERLIQUID_WS_URL", "value": "wss://api.hyperliquid.xyz/ws" }
+      ],
+      "ports": [3003],
+      "healthCheckPath": "/health",
+      "autoDeploy": true
+    },
+    {
+      "name": "analytics",
+      "type": "node",
+      "buildCommand": "pnpm --filter=@hyperdash/analytics build",
+      "startCommand": "pnpm --filter=@hyperdash/analytics start",
+      "env": [
+        { "key": "NODE_ENV", "value": "production" },
+        { "key": "PORT", "value": "3004" },
+        { "key": "DATABASE_URL", "secret": true },
+        { "key": "CLICKHOUSE_URL", "secret": true },
+        { "key": "REDIS_URL", "secret": true }
+      ],
+      "ports": [3004],
+      "healthCheckPath": "/health",
+      "autoDeploy": true
+    },
+    {
+      "name": "billing",
+      "type": "node",
+      "buildCommand": "pnpm --filter=@hyperdash/billing build",
+      "startCommand": "pnpm --filter=@hyperdash/billing start",
+      "env": [
+        { "key": "NODE_ENV", "value": "production" },
+        { "key": "PORT", "value": "3005" },
+        { "key": "DATABASE_URL", "secret": true },
+        { "key": "STRIPE_SECRET_KEY", "secret": true },
+        { "key": "STRIPE_WEBHOOK_SECRET", "secret": true }
+      ],
+      "ports": [3005],
+      "healthCheckPath": "/health",
+      "autoDeploy": true,
+      "domain": "billing.your-domain.com"
+    },
+    {
+      "name": "copy-engine",
+      "type": "go",
+      "buildCommand": "cd apps/copy-engine && go build -o bin/copy-engine ./cmd/server",
+      "startCommand": "./apps/copy-engine/bin/copy-engine",
+      "env": [
+        { "key": "PORT", "value": "3006" },
+        { "key": "DATABASE_URL", "secret": true },
+        { "key": "REDIS_URL", "secret": true }
+      ],
+      "ports": [3006],
+      "healthCheckPath": "/health",
+      "autoDeploy": true
+    }
+  ],
+
+  "databases": [
+    {
+      "name": "redis",
+      "type": "redis",
+      "version": "7-alpine",
+      "ports": [6379],
+      "volumeSize": "1GB"
+    }
+  ],
+
+  "volumes": [
+    {
+      "name": "app-data",
+      "path": "/app/data",
+      "size": "5GB"
+    }
+  ],
+
+  "networks": [
+    {
+      "name": "hyperdash-network",
+      "driver": "bridge"
+    }
+  ]
+}

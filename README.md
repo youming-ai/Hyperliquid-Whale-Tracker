@@ -1,358 +1,71 @@
-# 🚀 HyperDash Platform
+# HyperDash Platform
 
-A comprehensive data intelligence and copy trading platform for the Hyperliquid derivatives ecosystem. Built with modern microservices architecture to handle high-frequency data processing and sub-second trading execution.
+Data intelligence and copy trading platform for the Hyperliquid derivatives ecosystem.
 
-## ✨ Key Features
+## Tech Stack
 
-### 📊 Market Intelligence
-- **Real-time Market Data**: Live price feeds and OHLCV data
-- **Liquidation Heatmaps**: Visual representation of liquidation risk levels
-- **Market Analytics**: Advanced market metrics and insights
-- **Price Alerts**: Customizable price notifications
+- **Frontend**: TanStack Start, Vite, React, TypeScript, Tailwind CSS
+- **Backend**: Hono, Bun/Node.js, Go (copy engine)
+- **Database**: PostgreSQL (Drizzle ORM), ClickHouse, Redis
+- **Package Manager**: pnpm workspaces
+- **Build Tool**: Turborepo
+- **Linting**: Biome
 
-### 👥 Trader Analytics
-- **Trader Profiles**: Detailed trader performance metrics
-- **Rankings System**: Top traders by various performance metrics
-- **Performance Tracking**: Historical performance analysis
-- **Risk Metrics**: Comprehensive risk assessment tools
+## Quick Start
 
-### 🔄 Copy Trading
-- **Strategy Management**: Create and manage copy trading strategies
-- **Risk Controls**: Advanced risk management features
-- **Real-time Execution**: Sub-second trade copying
-- **Performance Analytics**: Track copy trading performance
-
-### 📈 Analytics Dashboard
-- **Platform Metrics**: Comprehensive platform analytics
-- **User Insights**: User behavior and engagement metrics
-- **Performance Tracking**: System performance monitoring
-- **Business Intelligence**: Advanced analytics and reporting
-
-## 🏗️ Architecture
-
-### Technology Stack
-- **Frontend**: TanStack Start, Vite, React 18, TypeScript, Tailwind CSS
-- **Backend**: Node.js, TypeScript, tRPC
-- **Trading Engine**: Go (high-performance execution)
-- **Databases**: PostgreSQL (transactional), ClickHouse (analytics), Redis (caching)
-- **Event Streaming**: Redpanda (Kafka-compatible)
-- **Monitoring**: Prometheus, Grafana
-- **Package Manager**: pnpm (workspace)
-- **Build Tool**: Turborepo (monorepo orchestration)
-- **Containerization**: Docker, Docker Compose
-
-### Microservices Architecture
-```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Frontend      │    │   API Gateway   │    │  Data Ingestion │
-│   (Next.js)     │◄──►│   (tRPC)        │◄──►│   Service       │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-                                │
-                       ┌────────┼────────┐
-                       ▼                ▼
-                ┌─────────────┐  ┌─────────────┐
-                │   Analytics │  │Copy Engine │
-                │ (Flink)     │  │    (Go)     │
-                └─────────────┘  └─────────────┘
-                       │                │
-                       ▼                ▼
-                ┌─────────────┐  ┌─────────────┐
-                │ ClickHouse  │  │ PostgreSQL  │
-                │ (Analytics) │  │(Transactional)│
-                └─────────────┘  └─────────────┘
-```
-
-## 🚀 Quick Start
-
-### Prerequisites
-- **Docker** and **Docker Compose**
-- **Node.js** 18+ 
-- **Go** 1.21+ (for copy trading engine)
-- **Git**
-
-### 1. Clone Repository
 ```bash
-git clone https://github.com/your-org/hyperdash-platform.git
-cd hyperdash-platform
-```
-
-### 2. Run Setup Script
-```bash
-chmod +x scripts/setup.sh
-./scripts/setup.sh
-```
-
-### 3. Install Dependencies
-```bash
+# Install dependencies
 pnpm install
-```
 
-### 4. Get Hyperliquid API Keys
-1. Visit [Hyperliquid](https://hyperliquid.xyz/)
-2. Create API keys in your account settings
-3. Add them to your `.env` file:
-   ```env
-   HYPERLIQUID_API_KEY=your_api_key
-   HYPERLIQUID_SECRET_KEY=your_secret_key
-   ```
-
-### 5. Start Development Environment
-```bash
+# Start development
 pnpm dev
+
+# Access
+# Web: http://localhost:5173
+# API: http://localhost:3000
 ```
 
-### 6. Access the Application
-- **Frontend**: http://localhost:5173
-- **API Gateway**: http://localhost:3000
-- **Grafana**: http://localhost:3002 (admin/admin)
-- **Prometheus**: http://localhost:9090
+## Commands
 
-## 📁 Project Structure
+| Command | Description |
+|---------|-------------|
+| `pnpm dev` | Start web + api-gateway |
+| `pnpm dev:web` | Start web only |
+| `pnpm dev:api` | Start api-gateway only |
+| `pnpm build` | Build all packages/apps |
+| `pnpm lint` | Run Biome linter |
+| `pnpm format` | Format code |
+| `pnpm type-check` | TypeScript type checking |
+| `pnpm db:migrate` | Run database migrations |
+| `pnpm docker:up` | Start Docker services |
+| `pnpm docker:down` | Stop Docker services |
+
+## Project Structure
 
 ```
-hyperdash-platform/
-├── apps/                    # Application services
-│   ├── web/                # TanStack Start frontend
-│   ├── api-gateway/        # tRPC API gateway
-│   ├── data-ingestion/     # Market data service
-│   ├── analytics/          # Analytics service
-│   ├── copy-engine/        # Go trading engine
-│   └── billing/            # Billing service
-├── packages/               # Shared packages
-│   ├── ui/                 # Shared UI components (coss UI)
-│   ├── shared-types/       # TypeScript types
-│   ├── database/           # Database schemas
-│   └── contracts/          # API contracts
-├── specs/                  # Feature specifications
-├── infrastructure/         # Infrastructure configs
-└── scripts/               # Utility scripts
+├── apps/
+│   ├── web/            # TanStack Start frontend (Vite)
+│   ├── api-gateway/    # Hono API gateway
+│   ├── data-ingestion/ # Market data service
+│   ├── analytics/      # Analytics service
+│   ├── billing/        # Stripe billing
+│   └── copy-engine/    # Go trading engine
+├── packages/
+│   ├── ui/             # Shared UI components (coss UI)
+│   ├── shared-types/   # TypeScript types
+│   ├── database/       # Drizzle schemas
+│   └── contracts/      # API contracts
+└── docs/               # Documentation
 ```
 
-## 🔧 Development
+## Deployment
 
-### Available Scripts
+See [docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md) for Cloudflare + VPS + Supabase deployment guide.
 
-```bash
-# Development
-pnpm dev                 # Start web and api-gateway
-pnpm dev:all             # Start all services
-pnpm build               # Build all packages and applications
+## Environment
 
-# Database
-pnpm db:migrate          # Run database migrations
-
-# Code Quality
-pnpm lint                # Run Biome lint
-pnpm format              # Format code with Biome
-pnpm type-check          # TypeScript type checking
-```
-
-# Testing
-npm run test             # Run tests
-npm run test:watch       # Run tests in watch mode
-```
-
-### Environment Variables
-
-Key environment variables (see `.env.example` for complete list):
-
-```bash
-# Database
-DATABASE_URL=postgresql://hyperdash:password@localhost:5432/hyperdash
-CLICKHOUSE_URL=http://localhost:8123
-REDIS_URL=redis://localhost:6379
-
-# API
-JWT_SECRET=your-jwt-secret
-NEXT_PUBLIC_API_URL=http://localhost:3001
-
-# Hyperliquid API
-HYPERLIQUID_API_KEY=your-api-key
-HYPERLIQUID_SECRET_KEY=your-secret-key
-```
-
-## 📚 API Documentation
-
-The platform uses tRPC for type-safe APIs. Available endpoints include:
-
-- **Market Data**: Real-time market overview, OHLCV data, heatmaps
-- **Traders**: Trader profiles, performance metrics, rankings
-- **Strategies**: Copy trading strategy management
-- **Analytics**: Advanced market analytics and insights
-
-See `packages/contracts/src/routers/` for complete API definitions.
-
-## 🔌 WebSocket Events
-
-Real-time data streaming via WebSocket:
-
-```javascript
-// Connect to WebSocket
-const socket = io('ws://localhost:3001', {
-  auth: { token: 'your-jwt-token' }
-});
-
-// Subscribe to market data
-socket.emit('subscribe', { room: 'market:BTC-PERP' });
-
-// Receive real-time updates
-socket.on('broadcast', (message) => {
-  console.log('Market update:', message);
-});
-```
-
-## 🔒 Security
-
-### Authentication Methods
-- **Wallet-based**: Sign message with blockchain wallet
-- **JWT tokens**: Secure session management
-- **KYC levels**: Tiered access control
-
-### Security Features
-- **Rate limiting**: Prevent API abuse
-- **Input validation**: Comprehensive data validation
-- **Audit logging**: Complete audit trail
-- **Encryption**: Data encryption at rest and in transit
-
-## 📈 Monitoring
-
-### Metrics Available
-- **API Performance**: Response times, error rates
-- **Database Performance**: Query times, connection pools
-- **Business Metrics**: User activity, trading volume
-- **System Health**: Resource usage, uptime
-
-### Monitoring Tools
-- **Prometheus**: Metrics collection
-- **Grafana**: Visualization and alerting
-- **Structured Logs**: Detailed logging with context
-
-## 🧪 Testing
-
-### Test Structure
-```
-tests/
-├── unit/                   # Unit tests
-├── integration/            # Integration tests
-├── e2e/                   # End-to-end tests
-└── fixtures/              # Test data
-```
-
-### Running Tests
-```bash
-# All tests
-npm run test
-
-# Unit tests only
-npm run test:unit
-
-# Integration tests
-npm run test:integration
-
-# E2E tests
-npm run test:e2e
-
-# Coverage
-npm run test:coverage
-```
-
-## 🚢 Deployment
-
-### Development
-```bash
-docker-compose up -d
-```
-
-### Production
-```bash
-# Build production images
-docker-compose -f docker-compose.prod.yml build
-
-# Deploy with Kubernetes
-kubectl apply -f infrastructure/kubernetes/
-```
-
-### Environment Configuration
-- **Development**: Hot reload, debug logs, test data
-- **Staging**: Production-like configuration
-- **Production**: Optimized for performance and security
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests if applicable
-5. Submit a pull request
-
-### Code Style
-- Use TypeScript for all new code
-- Follow ESLint and Prettier configurations
-- Write meaningful commit messages
-- Include tests for new features
-
-### Development Workflow
-```bash
-# Create feature branch
-git checkout -b feature/your-feature
-
-# Make changes
-# ...
-
-# Run tests
-npm run test
-npm run lint
-
-# Commit and push
-git commit -m "feat: add new feature"
-git push origin feature/your-feature
-```
-
-## 📄 License
-
-This project is licensed under the MIT License.
-
-## 🆘 Support
-
-- **Documentation**: [docs.hyperdash.io](https://docs.hyperdash.io)
-- **Issues**: [GitHub Issues](https://github.com/your-org/hyperdash-platform/issues)
-- **Discord**: [Community Discord](https://discord.gg/hyperdash)
-- **Email**: support@hyperdash.io
-
-## 🚀 Roadmap
-
-### Phase 1: Core Platform ✅
-- [x] Basic market data
-- [x] Trader analytics
-- [x] Copy trading engine
-- [x] User management
-
-### Phase 2: Advanced Features
-- [ ] Advanced analytics
-- [ ] Social features
-- [ ] Mobile app
-- [ ] API access
-
-### Phase 3: Enterprise Features
-- [ ] Multi-exchange support
-- [ ] Advanced risk management
-- [ ] Institutional features
-- [ ] White-label solutions
-
-## 📊 Performance
-
-### Target Metrics
-- **Market Data Latency**: P95 ≤ 500ms
-- **Copy Trading Execution**: P95 ≤ 1000ms
-- **Concurrent Users**: 3,000+
-- **Throughput**: 10,000+ messages/second
-
-### Optimization
-- **Database Indexing**: Optimized query performance
-- **Caching**: Multi-layer caching strategy
-- **Connection Pooling**: Efficient resource usage
-- **Load Balancing**: Horizontal scaling support
-
----
-
-**Built with ❤️ for the Hyperliquid community**
+Copy `.env.example` to `.env` and configure:
+- Database URLs (PostgreSQL, ClickHouse, Redis)
+- JWT secrets
+- Hyperliquid API keys
+- Stripe keys (billing)
