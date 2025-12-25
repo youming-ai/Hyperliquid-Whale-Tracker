@@ -2,25 +2,23 @@
   "name": "hyperdash-platform",
   "version": "1.0.0",
   "description": "A comprehensive data intelligence and copy trading platform for the Hyperliquid derivatives ecosystem",
-  "packageManager": "bun@1.3.5",
-  "workspaces": [
-    "packages/*",
-    "apps/*"
-  ],
+  "packageManager": "pnpm@9.15.0",
   "scripts": {
-    "dev": "bun --filter web dev",
-    "dev:all": "concurrently \"bun --filter api-gateway dev\" \"bun --filter web dev\"",
-    "build": "bun run -r build",
-    "start": "bun run -r start",
-    "test": "bun run -r test",
+    "dev": "turbo run dev",
+    "dev:web": "turbo run dev --filter=web",
+    "dev:api": "turbo run dev --filter=@hyperdash/api-gateway",
+    "dev:all": "concurrently \"turbo run dev --filter=@hyperdash/api-gateway\" \"turbo run dev --filter=web\"",
+    "build": "turbo run build",
+    "start": "turbo run start",
+    "test": "turbo run test",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
     "format": "biome format --write .",
-    "type-check": "bun run -r type-check",
-    "clean": "bun run -r clean && rm -rf node_modules",
+    "type-check": "turbo run type-check",
+    "clean": "turbo run clean && rm -rf node_modules",
     "docker:up": "docker-compose up -d",
     "docker:down": "docker-compose down",
-    "db:migrate": "bun --filter @hyperdash/database db:migrate",
+    "db:migrate": "pnpm --filter @hyperdash/database migrate",
     "prepare": "husky"
   },
   "lint-staged": {
@@ -38,6 +36,7 @@
     "typescript": "^5.9.3"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=18.0.0",
+    "pnpm": ">=9.0.0"
   }
 }

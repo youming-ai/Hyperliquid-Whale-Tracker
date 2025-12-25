@@ -31,12 +31,14 @@ A comprehensive data intelligence and copy trading platform for the Hyperliquid 
 ## 🏗️ Architecture
 
 ### Technology Stack
-- **Frontend**: Next.js 14, TypeScript, Tailwind CSS
+- **Frontend**: TanStack Start, Vite, React 18, TypeScript, Tailwind CSS
 - **Backend**: Node.js, TypeScript, tRPC
 - **Trading Engine**: Go (high-performance execution)
 - **Databases**: PostgreSQL (transactional), ClickHouse (analytics), Redis (caching)
 - **Event Streaming**: Redpanda (Kafka-compatible)
 - **Monitoring**: Prometheus, Grafana
+- **Package Manager**: pnpm (workspace)
+- **Build Tool**: Turborepo (monorepo orchestration)
 - **Containerization**: Docker, Docker Compose
 
 ### Microservices Architecture
@@ -82,7 +84,7 @@ chmod +x scripts/setup.sh
 
 ### 3. Install Dependencies
 ```bash
-bun install
+pnpm install
 ```
 
 ### 4. Get Hyperliquid API Keys
@@ -96,7 +98,7 @@ bun install
 
 ### 5. Start Development Environment
 ```bash
-bun dev
+pnpm dev
 ```
 
 ### 6. Access the Application
@@ -132,17 +134,17 @@ hyperdash-platform/
 
 ```bash
 # Development
-bun dev                 # Start web and api-gateway
-bun run dev:all         # Start all services
-bun run build           # Build all packages and applications
+pnpm dev                 # Start web and api-gateway
+pnpm dev:all             # Start all services
+pnpm build               # Build all packages and applications
 
 # Database
-bun run db:migrate      # Run database migrations
+pnpm db:migrate          # Run database migrations
 
 # Code Quality
-bun run lint            # Run Biome lint
-bun run format          # Format code with Biome
-bun run type-check      # TypeScript type checking
+pnpm lint                # Run Biome lint
+pnpm format              # Format code with Biome
+pnpm type-check          # TypeScript type checking
 ```
 
 # Testing

@@ -9,8 +9,8 @@
     "dev": "tsc --watch",
     "clean": "rm -rf dist",
     "type-check": "tsc --noEmit",
-    "lint": "eslint src --ext .ts,.tsx",
-    "lint:fix": "eslint src --ext .ts,.tsx --fix"
+    "lint": "biome check src",
+    "lint:fix": "biome check --write src"
   },
   "dependencies": {
     "zod": "^3.22.4",

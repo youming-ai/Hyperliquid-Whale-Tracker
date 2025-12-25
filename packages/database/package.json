@@ -13,8 +13,8 @@
     "migrate:clickhouse": "cd clickhouse && npm run migrate",
     "seed": "cd postgres && npm run seed",
     "type-check": "tsc --noEmit",
-    "lint": "eslint src --ext .ts,.tsx",
-    "lint:fix": "eslint src --ext .ts,.tsx --fix"
+    "lint": "biome check src",
+    "lint:fix": "biome check --write src"
   },
   "dependencies": {
     "@types/pg": "^8.10.9",

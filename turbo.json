@@ -4,7 +4,7 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
-      "outputs": [".output/**", ".vinxi/**", "dist/**"]
+      "outputs": [".output/**", ".vinxi/**", "dist/**", "build/**"]
     },
     "dev": {
       "cache": false,
@@ -35,9 +35,6 @@
     },
     "clean": {
       "cache": false
-    },
-    "codegen": {
-      "outputs": []
     }
   }
 }
