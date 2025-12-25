@@ -9,7 +9,6 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as TradersIndexRouteImport } from './routes/traders/index'
 import { Route as StrategiesIndexRouteImport } from './routes/strategies/index'
@@ -17,11 +16,6 @@ import { Route as TradersAddressRouteImport } from './routes/traders/$address'
 import { Route as StrategiesNewRouteImport } from './routes/strategies/new'
 import { Route as StrategiesIdRouteImport } from './routes/strategies/$id'
 
-const DashboardRoute = DashboardRouteImport.update({
-  id: '/dashboard',
-  path: '/dashboard',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -55,7 +49,6 @@ const StrategiesIdRoute = StrategiesIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/dashboard': typeof DashboardRoute
   '/strategies/$id': typeof StrategiesIdRoute
   '/strategies/new': typeof StrategiesNewRoute
   '/traders/$address': typeof TradersAddressRoute
@@ -64,7 +57,6 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/dashboard': typeof DashboardRoute
   '/strategies/$id': typeof StrategiesIdRoute
   '/strategies/new': typeof StrategiesNewRoute
   '/traders/$address': typeof TradersAddressRoute
@@ -74,7 +66,6 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/dashboard': typeof DashboardRoute
   '/strategies/$id': typeof StrategiesIdRoute
   '/strategies/new': typeof StrategiesNewRoute
   '/traders/$address': typeof TradersAddressRoute
@@ -85,7 +76,6 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/dashboard'
     | '/strategies/$id'
     | '/strategies/new'
     | '/traders/$address'
@@ -94,7 +84,6 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/dashboard'
     | '/strategies/$id'
     | '/strategies/new'
     | '/traders/$address'
@@ -103,7 +92,6 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
-    | '/dashboard'
     | '/strategies/$id'
     | '/strategies/new'
     | '/traders/$address'
@@ -113,7 +101,6 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  DashboardRoute: typeof DashboardRoute
   StrategiesIdRoute: typeof StrategiesIdRoute
   StrategiesNewRoute: typeof StrategiesNewRoute
   TradersAddressRoute: typeof TradersAddressRoute
@@ -123,13 +110,6 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/dashboard': {
-      id: '/dashboard'
-      path: '/dashboard'
-      fullPath: '/dashboard'
-      preLoaderRoute: typeof DashboardRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/': {
       id: '/'
       path: '/'
@@ -177,7 +157,6 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  DashboardRoute: DashboardRoute,
   StrategiesIdRoute: StrategiesIdRoute,
   StrategiesNewRoute: StrategiesNewRoute,
   TradersAddressRoute: TradersAddressRoute,
