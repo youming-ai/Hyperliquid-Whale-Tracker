@@ -1,197 +1,311 @@
-import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, Link } from '@tanstack/react-router';
-import type { ColumnDef } from '@tanstack/react-table';
-import { DataTable } from '../../components/tables/DataTable';
-import { formatCompactNumber, formatPnL, shortenAddress } from '../../lib/utils';
+import { ArrowUpDown, Filter, X } from 'lucide-react';
+import { useState } from 'react';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { trpc } from '@/lib/api/trpc';
+import { formatCompactNumber, formatPnL } from '@/lib/utils';
 
 export const Route = createFileRoute('/traders/')({
   component: TradersPage,
 });
 
-// Trader type definition
-interface Trader {
-  address: string;
-  pnl7d: number;
-  winRate: number;
-  trades: number;
-  volume: number;
-  sharpe: number;
-}
-
-// Mock traders data
-const mockTraders: Trader[] = [
-  {
-    address: '0x1234567890abcdef1234567890abcdef12345678',
-    pnl7d: 125000,
-    winRate: 68.5,
-    trades: 1240,
-    volume: 2500000,
-    sharpe: 2.4,
-  },
-  {
-    address: '0x2345678901abcdef2345678901abcdef23456789',
-    pnl7d: 98000,
-    winRate: 72.3,
-    trades: 980,
-    volume: 1800000,
-    sharpe: 2.1,
-  },
-  {
-    address: '0x3456789012abcdef3456789012abcdef34567890',
-    pnl7d: 85000,
-    winRate: 65.2,
-    trades: 2100,
-    volume: 3200000,
-    sharpe: 1.8,
-  },
-  {
-    address: '0x456789012abcdef3456789012abcdef345678901',
-    pnl7d: -15000,
-    winRate: 45.2,
-    trades: 560,
-    volume: 890000,
-    sharpe: -0.3,
-  },
-  {
-    address: '0x56789012abcdef3456789012abcdef3456789012',
-    pnl7d: 72000,
-    winRate: 61.8,
-    trades: 1890,
-    volume: 2100000,
-    sharpe: 1.6,
-  },
-  {
-    address: '0x6789012abcdef3456789012abcdef34567890123',
-    pnl7d: 55000,
-    winRate: 58.2,
-    trades: 1450,
-    volume: 1750000,
-    sharpe: 1.4,
-  },
-  {
-    address: '0x789012abcdef3456789012abcdef345678901234',
-    pnl7d: 42000,
-    winRate: 55.5,
-    trades: 2200,
-    volume: 2800000,
-    sharpe: 1.2,
-  },
-  {
-    address: '0x89012abcdef3456789012abcdef3456789012345',
-    pnl7d: -8000,
-    winRate: 48.1,
-    trades: 890,
-    volume: 1100000,
-    sharpe: -0.1,
-  },
-];
-
-// Define columns for TanStack Table
-const columns: ColumnDef<Trader>[] = [
-  {
-    accessorKey: 'rank',
-    header: '#',
-    cell: ({ row }) => <span className="font-medium">{row.index + 1}</span>,
-    enableSorting: false,
-  },
-  {
-    accessorKey: 'address',
-    header: 'Address',
-    cell: ({ row }) => (
-      <span className="font-mono text-sm">{shortenAddress(row.original.address)}</span>
-    ),
-  },
-  {
-    accessorKey: 'pnl7d',
-    header: '7d PnL',
-    cell: ({ row }) => (
-      <span
-        className={`font-medium ${row.original.pnl7d >= 0 ? 'text-success' : 'text-destructive'}`}
-      >
-        {formatPnL(row.original.pnl7d)}
-      </span>
-    ),
-  },
-  {
-    accessorKey: 'winRate',
-    header: 'Win Rate',
-    cell: ({ row }) => <span>{row.original.winRate}%</span>,
-  },
-  {
-    accessorKey: 'trades',
-    header: 'Trades',
-    cell: ({ row }) => <span className="opacity-80">{row.original.trades.toLocaleString()}</span>,
-  },
-  {
-    accessorKey: 'volume',
-    header: 'Volume',
-    cell: ({ row }) => (
-      <span className="opacity-80">{formatCompactNumber(row.original.volume)}</span>
-    ),
-  },
-  {
-    accessorKey: 'sharpe',
-    header: 'Sharpe',
-    cell: ({ row }) => (
-      <span className={row.original.sharpe >= 0 ? 'text-success' : 'text-destructive'}>
-        {row.original.sharpe.toFixed(2)}
-      </span>
-    ),
-  },
-  {
-    id: 'actions',
-    header: '',
-    cell: ({ row }) => (
-      <Link
-        to="/traders/$address"
-        params={{ address: row.original.address }}
-        className="px-3 py-1 text-sm rounded-md bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] hover:opacity-90 transition-opacity"
-      >
-        View
-      </Link>
-    ),
-    enableSorting: false,
-  },
-];
+type Timeframe = '7d' | '30d' | '90d' | 'all';
+type SortBy = 'pnl' | 'winRate' | 'trades' | 'equity';
+type SortOrder = 'asc' | 'desc';
 
 function TradersPage() {
-  const { data: traders, isLoading } = useQuery({
-    queryKey: ['traders', 'list'],
-    queryFn: async () => {
-      await new Promise((resolve) => setTimeout(resolve, 300));
-      return mockTraders;
+  const [timeframe, setTimeframe] = useState<Timeframe>('7d');
+  const [sortBy, setSortBy] = useState<SortBy>('pnl');
+  const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
+  const [showActiveOnly, setShowActiveOnly] = useState(false);
+
+  // Use tRPC to fetch traders with current filters
+  // @ts-expect-error - AppRouter is any type until proper type generation is set up
+  const { data, isLoading, refetch } = trpc.traders.list.useQuery({
+    input: {
+      limit: 20,
+      sortBy,
+      sortOrder,
+      timeframe,
+      activeOnly: showActiveOnly,
     },
   });
 
+  const handleTimeframeChange = (newTimeframe: Timeframe) => {
+    setTimeframe(newTimeframe);
+  };
+
+  const handleSortChange = (newSortBy: SortBy) => {
+    if (sortBy === newSortBy) {
+      // Toggle sort order if clicking the same column
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortBy(newSortBy);
+      setSortOrder('desc'); // Default to descending for new sort column
+    }
+  };
+
+  const clearFilters = () => {
+    setShowActiveOnly(false);
+    setSortBy('pnl');
+    setSortOrder('desc');
+    setTimeframe('7d');
+  };
+
+  const hasActiveFilters =
+    showActiveOnly || sortBy !== 'pnl' || sortOrder !== 'desc' || timeframe !== '7d';
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-3xl font-bold">Top Traders</h1>
-          <p className="text-sm opacity-60 mt-1">Rankings based on 7-day performance</p>
+          <p className="text-sm opacity-60 mt-1">
+            Discover and copy the best performers on Hyperliquid
+          </p>
         </div>
         <div className="flex gap-2">
-          <select className="px-4 py-2 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] text-sm">
-            <option value="7d">Last 7 Days</option>
-            <option value="30d">Last 30 Days</option>
-            <option value="all">All Time</option>
-          </select>
+          <Button variant="outline" size="sm" onClick={() => handleSortChange('pnl')}>
+            <ArrowUpDown className="w-4 h-4 mr-2" />
+            Sort
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowActiveOnly(!showActiveOnly)}
+            className={showActiveOnly ? 'bg-primary text-primary-foreground' : ''}
+          >
+            <Filter className="w-4 h-4 mr-2" />
+            {showActiveOnly ? 'Active Only' : 'All Traders'}
+          </Button>
+          {hasActiveFilters && (
+            <Button variant="ghost" size="sm" onClick={clearFilters}>
+              <X className="w-4 h-4 mr-2" />
+              Clear
+            </Button>
+          )}
         </div>
       </div>
 
+      {/* Time period selector */}
+      <div className="flex gap-2 mb-6">
+        <Button
+          variant={timeframe === '7d' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => handleTimeframeChange('7d')}
+        >
+          7D
+        </Button>
+        <Button
+          variant={timeframe === '30d' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => handleTimeframeChange('30d')}
+        >
+          30D
+        </Button>
+        <Button
+          variant={timeframe === '90d' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => handleTimeframeChange('90d')}
+        >
+          90D
+        </Button>
+        <Button
+          variant={timeframe === 'all' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => handleTimeframeChange('all')}
+        >
+          All Time
+        </Button>
+      </div>
+
+      {/* Sort options */}
+      <div className="flex gap-2 mb-6">
+        <span className="text-sm opacity-60 self-center">Sort by:</span>
+        <Button
+          variant={sortBy === 'pnl' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => handleSortChange('pnl')}
+        >
+          PnL {sortBy === 'pnl' && (sortOrder === 'asc' ? '↑' : '↓')}
+        </Button>
+        <Button
+          variant={sortBy === 'winRate' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => handleSortChange('winRate')}
+        >
+          Win Rate {sortBy === 'winRate' && (sortOrder === 'asc' ? '↑' : '↓')}
+        </Button>
+        <Button
+          variant={sortBy === 'trades' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => handleSortChange('trades')}
+        >
+          Trades {sortBy === 'trades' && (sortOrder === 'asc' ? '↑' : '↓')}
+        </Button>
+        <Button
+          variant={sortBy === 'equity' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => handleSortChange('equity')}
+        >
+          Equity {sortBy === 'equity' && (sortOrder === 'asc' ? '↑' : '↓')}
+        </Button>
+      </div>
+
+      {/* Active filters indicator */}
+      {hasActiveFilters && (
+        <div className="mb-6 p-3 rounded-lg bg-muted/50 border border-border">
+          <div className="text-sm font-medium mb-2">Active Filters:</div>
+          <div className="flex flex-wrap gap-2">
+            <Badge variant="secondary">Time: {timeframe}</Badge>
+            <Badge variant="secondary">
+              Sort: {sortBy} ({sortOrder})
+            </Badge>
+            {showActiveOnly && <Badge variant="secondary">Active only</Badge>}
+          </div>
+        </div>
+      )}
+
+      {/* Traders grid */}
       {isLoading ? (
         <div className="text-center py-12 opacity-60">Loading traders...</div>
+      ) : !data || data.length === 0 ? (
+        <div className="text-center py-12">
+          <p className="opacity-60">No traders found matching your filters.</p>
+          {hasActiveFilters && (
+            <Button variant="outline" className="mt-4" onClick={clearFilters}>
+              Clear Filters
+            </Button>
+          )}
+        </div>
       ) : (
-        <div className="bg-[hsl(var(--card))] p-6 rounded-xl">
-          <DataTable
-            columns={columns}
-            data={traders ?? []}
-            pageSize={10}
-            searchColumn="address"
-            searchPlaceholder="Search by address..."
-          />
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {data?.map((trader: any) => (
+            <TraderCard
+              key={trader.address}
+              trader={trader}
+              rank={trader.rank}
+              timeframe={timeframe}
+            />
+          ))}
         </div>
       )}
     </div>
+  );
+}
+
+function TraderCard({
+  trader,
+  rank,
+  timeframe,
+}: {
+  trader: {
+    address: string;
+    pnl7d: number;
+    pnl30d: number;
+    pnl90d?: number;
+    pnlAllTime?: number;
+    winRate: number;
+    totalTrades: number;
+    equity: number;
+    sharpe: number;
+    maxDrawdown: number;
+    isActive: boolean;
+    lastTradeAt: string | null;
+    rank: number;
+  };
+  rank: number;
+  timeframe: Timeframe;
+}) {
+  // Get the PnL based on selected timeframe
+  const getPnLForTimeframe = () => {
+    switch (timeframe) {
+      case '7d':
+        return trader.pnl7d;
+      case '30d':
+        return trader.pnl30d;
+      case '90d':
+        return trader.pnl90d ?? trader.pnl30d; // Fallback to 30d if 90d not available
+      case 'all':
+        return trader.pnlAllTime ?? trader.pnl30d; // Fallback to 30d if all time not available
+      default:
+        return trader.pnl7d;
+    }
+  };
+
+  const displayPnL = getPnLForTimeframe();
+  const isPositive = displayPnL >= 0;
+
+  return (
+    <Card className="hover:shadow-lg transition-shadow">
+      <CardContent className="p-6">
+        <div className="flex items-start justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold">
+              {rank}
+            </div>
+            <div>
+              <div className="font-mono text-sm font-medium">{trader.address}</div>
+              <div className="flex items-center gap-2 mt-1">
+                {trader.isActive ? (
+                  <Badge variant="success" className="text-xs">
+                    Active
+                  </Badge>
+                ) : (
+                  <Badge variant="secondary" className="text-xs">
+                    Inactive
+                  </Badge>
+                )}
+                <span className="text-xs opacity-60">
+                  {formatCompactNumber(trader.totalTrades)} trades
+                </span>
+              </div>
+            </div>
+          </div>
+          <Link to="/traders/$address" params={{ address: trader.address }}>
+            <Button variant="outline" size="sm">
+              View Details
+            </Button>
+          </Link>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <div className="text-xs opacity-60 mb-1">{timeframe.toUpperCase()} PnL</div>
+            <div
+              className={`text-lg font-bold flex items-center gap-1 ${isPositive ? 'text-success' : 'text-destructive'}`}
+            >
+              {formatPnL(displayPnL)}
+            </div>
+          </div>
+          <div>
+            <div className="text-xs opacity-60 mb-1">Win Rate</div>
+            <div className="text-lg font-bold">{trader.winRate}%</div>
+          </div>
+          <div>
+            <div className="text-xs opacity-60 mb-1">Equity</div>
+            <div className="text-lg font-bold">${formatCompactNumber(trader.equity)}</div>
+          </div>
+          <div>
+            <div className="text-xs opacity-60 mb-1">Sharpe</div>
+            <div
+              className={`text-lg font-bold ${trader.sharpe >= 0 ? 'text-success' : 'text-destructive'}`}
+            >
+              {trader.sharpe.toFixed(2)}
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-4 pt-4 border-t border-[hsl(var(--border))]">
+          <div className="flex items-center justify-between text-xs">
+            <span className="opacity-60">Max Drawdown</span>
+            <span className="font-medium">{trader.maxDrawdown.toFixed(1)}%</span>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 }

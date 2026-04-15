@@ -17,16 +17,16 @@ function HomePage() {
         </p>
         <div className="flex gap-4 justify-center">
           <Link
-            to="/dashboard"
+            to="/traders"
             className="px-6 py-3 rounded-lg bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] font-medium hover:opacity-90 transition-opacity"
           >
-            Launch Dashboard
+            Explore Traders
           </Link>
           <Link
-            to="/traders"
+            to="/strategies"
             className="px-6 py-3 rounded-lg border border-[hsl(var(--border))] font-medium hover:bg-[hsl(var(--accent))] transition-colors"
           >
-            Explore Traders
+            My Strategies
           </Link>
         </div>
       </div>

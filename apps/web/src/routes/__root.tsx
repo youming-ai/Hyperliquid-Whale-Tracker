@@ -20,13 +20,6 @@ function RootLayout() {
               </Link>
               <div className="hidden md:flex gap-6">
                 <Link
-                  to="/dashboard"
-                  className="text-sm font-medium opacity-80 hover:opacity-100 transition-opacity"
-                  activeProps={{ className: 'opacity-100' }}
-                >
-                  Dashboard
-                </Link>
-                <Link
                   to="/traders"
                   className="text-sm font-medium opacity-80 hover:opacity-100 transition-opacity"
                   activeProps={{ className: 'opacity-100' }}

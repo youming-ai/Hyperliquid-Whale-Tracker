@@ -1,37 +1,107 @@
+import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useState } from 'react';
-import { z } from 'zod';
 
 export const Route = createFileRoute('/strategies/new')({
   component: NewStrategyPage,
 });
 
-const strategySchema = z.object({
-  name: z.string().min(1, 'Strategy name is required'),
-  targetTrader: z.string().regex(/^0x[a-fA-F0-9]{40}$/, 'Invalid wallet address'),
-  allocationAmount: z.number().min(100, 'Minimum allocation is $100'),
-  leverage: z.number().min(1).max(20),
-  maxDailyLoss: z.number().min(1).max(50),
-  stopLossPercent: z.number().min(1).max(50),
-  takeProfitPercent: z.number().min(1).max(100),
-  copyMode: z.enum(['PROPORTIONAL', 'FIXED', 'MIRROR']),
-});
+interface Allocation {
+  traderId: string;
+  weight: number;
+}
 
-type StrategyFormData = z.infer<typeof strategySchema>;
+interface RiskParams {
+  maxLeverage: number;
+  maxPositionUsd?: number;
+  slippageBps: number;
+  minOrderUsd: number;
+}
+
+interface Settings {
+  followNewEntriesOnly: boolean;
+  autoRebalance: boolean;
+  rebalanceThresholdBps: number;
+}
+
+interface StrategyFormData {
+  name: string;
+  description: string;
+  mode: 'portfolio' | 'single_trader';
+  riskParams: RiskParams;
+  settings: Settings;
+  allocations: Allocation[];
+}
+
+// Mock top traders for recommendations
+const mockTopTraders = [
+  {
+    traderId: '0x1234...5678',
+    name: 'BTC Whale Alpha',
+    pnl7d: 12500,
+    winRate: 68.5,
+    trades: 45,
+  },
+  {
+    traderId: '0xabcd...ef01',
+    name: 'ETH Scalper Pro',
+    pnl7d: 8900,
+    winRate: 72.1,
+    trades: 82,
+  },
+  {
+    traderId: '0x5678...9abc',
+    name: 'Stable Returns Fund',
+    pnl7d: 3200,
+    winRate: 85.2,
+    trades: 28,
+  },
+  {
+    traderId: '0x9abc...def0',
+    name: 'DeFi Yield Master',
+    pnl7d: 6700,
+    winRate: 64.8,
+    trades: 56,
+  },
+  {
+    traderId: '0xfedc...ba98',
+    name: 'Perp Trader Elite',
+    pnl7d: 15200,
+    winRate: 59.3,
+    trades: 94,
+  },
+];
 
 function NewStrategyPage() {
   const navigate = useNavigate();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showTraderSearch, setShowTraderSearch] = useState(false);
 
   const [formData, setFormData] = useState<StrategyFormData>({
     name: '',
-    targetTrader: '',
-    allocationAmount: 1000,
-    leverage: 3,
-    maxDailyLoss: 5,
-    stopLossPercent: 10,
-    takeProfitPercent: 20,
-    copyMode: 'PROPORTIONAL',
+    description: '',
+    mode: 'portfolio',
+    riskParams: {
+      maxLeverage: 3,
+      maxPositionUsd: undefined,
+      slippageBps: 10,
+      minOrderUsd: 100,
+    },
+    settings: {
+      followNewEntriesOnly: true,
+      autoRebalance: true,
+      rebalanceThresholdBps: 50,
+    },
+    allocations: [],
+  });
+
+  // Fetch top traders for recommendations
+  const { data: topTraders } = useQuery({
+    queryKey: ['traders', 'top'],
+    queryFn: async () => {
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      return mockTopTraders;
+    },
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -39,137 +109,428 @@ function NewStrategyPage() {
     setIsSubmitting(true);
 
     try {
-      const validated = strategySchema.parse(formData);
-      console.log('Creating strategy:', validated);
-      // In real app, call API here
+      // Validate allocations
+      if (formData.allocations.length === 0) {
+        alert('Please add at least one trader to copy.');
+        return;
+      }
+
+      const totalWeight = formData.allocations.reduce((sum, a) => sum + a.weight, 0);
+      if (Math.abs(totalWeight - 1.0) > 0.01) {
+        alert(`Allocation weights must sum to 100%. Currently: ${Math.round(totalWeight * 100)}%`);
+        return;
+      }
+
+      console.log('Creating strategy:', formData);
+      // In real app, call API here:
+      // await trpc.copy.createStrategy.mutate(formData);
+
       await new Promise((resolve) => setTimeout(resolve, 500));
       navigate({ to: '/strategies' });
     } catch (error) {
-      console.error('Validation error:', error);
+      console.error('Error creating strategy:', error);
+      alert('Failed to create strategy. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const updateField = <K extends keyof StrategyFormData>(field: K, value: StrategyFormData[K]) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
+  const addAllocation = (traderId: string, weight: number = 0.5) => {
+    if (formData.allocations.some((a) => a.traderId === traderId)) {
+      alert('This trader is already in your allocations.');
+      return;
+    }
+
+    // Auto-balance existing weights
+    const currentTotal = formData.allocations.reduce((sum, a) => sum + a.weight, 0);
+    let newAllocations = [...formData.allocations];
+
+    if (currentTotal + weight > 1) {
+      // Scale down existing allocations
+      const scale = (1 - weight) / currentTotal;
+      newAllocations = newAllocations.map((a) => ({
+        ...a,
+        weight: a.weight * scale,
+      }));
+    }
+
+    newAllocations.push({ traderId, weight });
+    setFormData({ ...formData, allocations: newAllocations });
+    setShowTraderSearch(false);
   };
 
+  const removeAllocation = (traderId: string) => {
+    setFormData({
+      ...formData,
+      allocations: formData.allocations.filter((a) => a.traderId !== traderId),
+    });
+  };
+
+  const updateAllocationWeight = (traderId: string, weight: number) => {
+    const newAllocations = formData.allocations.map((a) =>
+      a.traderId === traderId ? { ...a, weight } : a,
+    );
+    setFormData({ ...formData, allocations: newAllocations });
+  };
+
+  const totalAllocationWeight = formData.allocations.reduce((sum, a) => sum + a.weight, 0);
+
   return (
-    <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <h1 className="text-2xl font-bold mb-8">Create New Strategy</h1>
+    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="mb-8">
+        <h1 className="text-2xl font-bold">Create New Copy Strategy</h1>
+        <p className="text-sm opacity-60 mt-1">
+          Configure an automated copy trading strategy that follows top traders
+        </p>
+      </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Strategy Name */}
+        {/* Basic Info */}
         <div className="bg-[hsl(var(--card))] border border-[hsl(var(--border))] rounded-xl p-6">
-          <h2 className="text-lg font-semibold mb-4">Basic Info</h2>
+          <h2 className="text-lg font-semibold mb-4">Basic Information</h2>
 
-          <div className="mb-4">
-            <label className="block text-sm font-medium mb-2">Strategy Name</label>
-            <input
-              type="text"
-              value={formData.name}
-              onChange={(e) => updateField('name', e.target.value)}
-              className="w-full px-4 py-2 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--primary))]"
-              placeholder="e.g., BTC Whale Follow"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-2">Target Trader Address</label>
-            <input
-              type="text"
-              value={formData.targetTrader}
-              onChange={(e) => updateField('targetTrader', e.target.value)}
-              className="w-full px-4 py-2 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] font-mono text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--primary))]"
-              placeholder="0x..."
-            />
-          </div>
-        </div>
-
-        {/* Allocation & Leverage */}
-        <div className="bg-[hsl(var(--card))] border border-[hsl(var(--border))] rounded-xl p-6">
-          <h2 className="text-lg font-semibold mb-4">Capital Settings</h2>
-
-          <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium mb-2">Allocation (USDC)</label>
+              <label className="block text-sm font-medium mb-2">Strategy Name</label>
               <input
-                type="number"
-                value={formData.allocationAmount}
-                onChange={(e) => updateField('allocationAmount', Number(e.target.value))}
+                type="text"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 className="w-full px-4 py-2 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--primary))]"
+                placeholder="e.g., Conservative Growth Portfolio"
+                required
               />
             </div>
 
+            <div>
+              <label className="block text-sm font-medium mb-2">Description (Optional)</label>
+              <textarea
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                className="w-full px-4 py-2 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--primary))]"
+                rows={2}
+                placeholder="Briefly describe your strategy goals and approach..."
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-2">Strategy Mode</label>
+              <select
+                value={formData.mode}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    mode: e.target.value as 'portfolio' | 'single_trader',
+                  })
+                }
+                className="w-full px-4 py-2 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--primary))]"
+              >
+                <option value="portfolio">Portfolio - Multiple traders with allocations</option>
+                <option value="single_trader">Single Trader - Copy one trader exclusively</option>
+              </select>
+              <p className="text-xs opacity-60 mt-1">
+                {formData.mode === 'portfolio'
+                  ? 'Allocate your capital across multiple traders to diversify risk.'
+                  : 'Follow a single trader with 100% allocation.'}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Trader Allocations */}
+        <div className="bg-[hsl(var(--card))] border border-[hsl(var(--border))] rounded-xl p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold">
+              Trader Allocations{' '}
+              <span className="text-sm font-normal opacity-60">
+                ({Math.round(totalAllocationWeight * 100)}% assigned)
+              </span>
+            </h2>
+            <button
+              type="button"
+              onClick={() => setShowTraderSearch(!showTraderSearch)}
+              className="px-3 py-1.5 text-sm rounded-md bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] hover:opacity-90 transition-opacity"
+            >
+              + Add Trader
+            </button>
+          </div>
+
+          {showTraderSearch && (
+            <div className="mb-4 p-4 rounded-lg bg-[hsl(var(--muted)/0.3)] border border-[hsl(var(--border))]">
+              <h3 className="font-medium mb-3">Select Traders to Copy</h3>
+              <div className="space-y-2">
+                {topTraders?.map((trader) => (
+                  <div
+                    key={trader.traderId}
+                    className="flex items-center justify-between p-3 rounded-lg bg-[hsl(var(--card))] border border-[hsl(var(--border))]"
+                  >
+                    <div className="flex-1">
+                      <p className="font-medium">{trader.name}</p>
+                      <p className="text-xs opacity-60 font-mono">{trader.traderId}</p>
+                    </div>
+                    <div className="flex items-center gap-4 text-sm">
+                      <div className="text-right">
+                        <p className="text-success font-medium">
+                          +${trader.pnl7d.toLocaleString()}
+                        </p>
+                        <p className="text-xs opacity-60">{trader.winRate}% win rate</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          addAllocation(
+                            trader.traderId,
+                            formData.mode === 'single_trader' ? 1.0 : 0.25,
+                          )
+                        }
+                        className="px-3 py-1 text-sm rounded-md bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] hover:opacity-90 transition-opacity"
+                      >
+                        Add
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {formData.allocations.length > 0 ? (
+            <div className="space-y-2">
+              {formData.allocations.map((alloc) => (
+                <div
+                  key={alloc.traderId}
+                  className="flex items-center gap-4 p-3 rounded-lg bg-[hsl(var(--muted)/0.3)] border border-[hsl(var(--border))]"
+                >
+                  <div className="flex-1">
+                    <p className="font-medium text-sm font-mono">{alloc.traderId}</p>
+                  </div>
+                  {formData.mode === 'portfolio' && (
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="range"
+                        min="1"
+                        max="100"
+                        value={Math.round(alloc.weight * 100)}
+                        onChange={(e) =>
+                          updateAllocationWeight(alloc.traderId, Number(e.target.value) / 100)
+                        }
+                        className="w-24"
+                      />
+                      <input
+                        type="number"
+                        min="1"
+                        max="100"
+                        step="1"
+                        value={Math.round(alloc.weight * 100)}
+                        onChange={(e) =>
+                          updateAllocationWeight(alloc.traderId, Number(e.target.value) / 100)
+                        }
+                        className="w-16 px-2 py-1 text-sm rounded border border-[hsl(var(--border))] bg-[hsl(var(--background))] text-center"
+                      />
+                      <span className="text-sm">%</span>
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => removeAllocation(alloc.traderId)}
+                    className="text-destructive hover:opacity-70 transition-opacity"
+                  >
+                    Remove
+                  </button>
+                </div>
+              ))}
+              {totalAllocationWeight !== 1 && (
+                <p className="text-xs opacity-60">
+                  Total allocation: {Math.round(totalAllocationWeight * 100)}%.{' '}
+                  {totalAllocationWeight < 1
+                    ? `${Math.round((1 - totalAllocationWeight) * 100)}% remaining.`
+                    : 'Over-allocated. Please adjust weights.'}
+                </p>
+              )}
+            </div>
+          ) : (
+            <p className="text-center py-8 opacity-60">
+              No traders added yet. Click "Add Trader" to select traders to copy.
+            </p>
+          )}
+        </div>
+
+        {/* Risk Parameters */}
+        <div className="bg-[hsl(var(--card))] border border-[hsl(var(--border))] rounded-xl p-6">
+          <h2 className="text-lg font-semibold mb-4">Risk Parameters</h2>
+
+          <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium mb-2">Max Leverage</label>
               <input
                 type="number"
-                value={formData.leverage}
-                onChange={(e) => updateField('leverage', Number(e.target.value))}
-                min={1}
-                max={20}
+                min="1"
+                max="10"
+                step="0.5"
+                value={formData.riskParams.maxLeverage}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    riskParams: {
+                      ...formData.riskParams,
+                      maxLeverage: Number(e.target.value),
+                    },
+                  })
+                }
                 className="w-full px-4 py-2 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--primary))]"
               />
+              <p className="text-xs opacity-60 mt-1">Maximum position leverage multiplier</p>
             </div>
-          </div>
 
-          <div className="mt-4">
-            <label className="block text-sm font-medium mb-2">Copy Mode</label>
-            <select
-              value={formData.copyMode}
-              onChange={(e) =>
-                updateField('copyMode', e.target.value as 'PROPORTIONAL' | 'FIXED' | 'MIRROR')
-              }
-              className="w-full px-4 py-2 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--primary))]"
-            >
-              <option value="PROPORTIONAL">Proportional - Scale based on allocation</option>
-              <option value="FIXED">Fixed - Use fixed position sizes</option>
-              <option value="MIRROR">Mirror - Copy exact positions</option>
-            </select>
+            <div>
+              <label className="block text-sm font-medium mb-2">Max Position Size (USD)</label>
+              <input
+                type="number"
+                min="100"
+                step="100"
+                value={formData.riskParams.maxPositionUsd ?? ''}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    riskParams: {
+                      ...formData.riskParams,
+                      maxPositionUsd: e.target.value ? Number(e.target.value) : undefined,
+                    },
+                  })
+                }
+                className="w-full px-4 py-2 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--primary))]"
+                placeholder="No limit"
+              />
+              <p className="text-xs opacity-60 mt-1">Optional: Maximum size per position</p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-2">Slippage Tolerance (bps)</label>
+              <input
+                type="number"
+                min="0"
+                max="100"
+                value={formData.riskParams.slippageBps}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    riskParams: {
+                      ...formData.riskParams,
+                      slippageBps: Number(e.target.value),
+                    },
+                  })
+                }
+                className="w-full px-4 py-2 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--primary))]"
+              />
+              <p className="text-xs opacity-60 mt-1">
+                {formData.riskParams.slippageBps / 100}% max acceptable slippage
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-2">Min Order Size (USD)</label>
+              <input
+                type="number"
+                min="5"
+                step="5"
+                value={formData.riskParams.minOrderUsd}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    riskParams: {
+                      ...formData.riskParams,
+                      minOrderUsd: Number(e.target.value),
+                    },
+                  })
+                }
+                className="w-full px-4 py-2 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--primary))]"
+              />
+              <p className="text-xs opacity-60 mt-1">Minimum order size to execute</p>
+            </div>
           </div>
         </div>
 
-        {/* Risk Management */}
+        {/* Copy Settings */}
         <div className="bg-[hsl(var(--card))] border border-[hsl(var(--border))] rounded-xl p-6">
-          <h2 className="text-lg font-semibold mb-4">Risk Management</h2>
+          <h2 className="text-lg font-semibold mb-4">Copy Settings</h2>
 
-          <div className="grid grid-cols-3 gap-4">
-            <div>
-              <label className="block text-sm font-medium mb-2">Max Daily Loss (%)</label>
-              <input
-                type="number"
-                value={formData.maxDailyLoss}
-                onChange={(e) => updateField('maxDailyLoss', Number(e.target.value))}
-                min={1}
-                max={50}
-                className="w-full px-4 py-2 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--primary))]"
-              />
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-medium">Follow New Entries Only</p>
+                <p className="text-sm opacity-60">
+                  Only copy new trades, don't sync existing positions
+                </p>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={formData.settings.followNewEntriesOnly}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      settings: {
+                        ...formData.settings,
+                        followNewEntriesOnly: e.target.checked,
+                      },
+                    })
+                  }
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-[hsl(var(--border))] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[hsl(var(--primary))]" />
+              </label>
+            </div>
+
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-medium">Auto Rebalance</p>
+                <p className="text-sm opacity-60">
+                  Automatically rebalance when positions drift from target allocation
+                </p>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={formData.settings.autoRebalance}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      settings: {
+                        ...formData.settings,
+                        autoRebalance: e.target.checked,
+                      },
+                    })
+                  }
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-[hsl(var(--border))] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[hsl(var(--primary))]" />
+              </label>
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-2">Stop Loss (%)</label>
+              <label className="block text-sm font-medium mb-2">Rebalance Threshold (bps)</label>
               <input
                 type="number"
-                value={formData.stopLossPercent}
-                onChange={(e) => updateField('stopLossPercent', Number(e.target.value))}
-                min={1}
-                max={50}
-                className="w-full px-4 py-2 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--primary))]"
+                min="0"
+                max="500"
+                step="5"
+                value={formData.settings.rebalanceThresholdBps}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    settings: {
+                      ...formData.settings,
+                      rebalanceThresholdBps: Number(e.target.value),
+                    },
+                  })
+                }
+                disabled={!formData.settings.autoRebalance}
+                className="w-full px-4 py-2 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--primary))] disabled:opacity-50"
               />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-2">Take Profit (%)</label>
-              <input
-                type="number"
-                value={formData.takeProfitPercent}
-                onChange={(e) => updateField('takeProfitPercent', Number(e.target.value))}
-                min={1}
-                max={100}
-                className="w-full px-4 py-2 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--primary))]"
-              />
+              <p className="text-xs opacity-60 mt-1">
+                Trigger rebalance when allocation drifts by{' '}
+                {formData.settings.rebalanceThresholdBps / 100}%
+              </p>
             </div>
           </div>
         </div>
@@ -185,8 +546,8 @@ function NewStrategyPage() {
           </button>
           <button
             type="submit"
-            disabled={isSubmitting}
-            className="flex-1 px-4 py-3 rounded-lg bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+            disabled={isSubmitting || formData.allocations.length === 0}
+            className="flex-1 px-4 py-3 rounded-lg bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] font-medium hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isSubmitting ? 'Creating...' : 'Create Strategy'}
           </button>

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useAccount, useDisconnect, useSignMessage } from 'wagmi';
-import { apiClient, authApi } from '../lib/api';
+
+// import { apiClient, authApi } from '../lib/api';
 
 interface AuthState {
   isAuthenticated: boolean;
@@ -28,7 +29,7 @@ export function useAuth() {
   useEffect(() => {
     const token = localStorage.getItem(TOKEN_KEY);
     if (token) {
-      apiClient.setToken(token);
+      // apiClient.setToken(token);
       setState((prev) => ({ ...prev, isAuthenticated: true, token }));
     }
   }, []);
@@ -43,6 +44,8 @@ export function useAuth() {
     setState((prev) => ({ ...prev, isLoading: true, error: null }));
 
     try {
+      // TODO: Implement API calls when apiClient is set up
+      /*
       // 1. Get nonce from server
       const { nonce } = await authApi.getNonce(address);
 
@@ -66,6 +69,8 @@ export function useAuth() {
         error: null,
         token,
       });
+      */
+      throw new Error('Not implemented');
     } catch (error) {
       console.error('Login error:', error);
       setState((prev) => ({
@@ -78,15 +83,15 @@ export function useAuth() {
 
   // Logout
   const logout = useCallback(async () => {
-    try {
-      await authApi.logout();
-    } catch (error) {
-      // Ignore logout errors
-    }
+    // try {
+    //   await authApi.logout();
+    // } catch (error) {
+    //   // Ignore logout errors
+    // }
 
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(REFRESH_TOKEN_KEY);
-    apiClient.setToken(null);
+    // apiClient.setToken(null);
     disconnect();
 
     setState({
@@ -103,10 +108,11 @@ export function useAuth() {
     if (!storedRefreshToken) return;
 
     try {
-      const { token } = await authApi.refreshToken(storedRefreshToken);
-      localStorage.setItem(TOKEN_KEY, token);
-      apiClient.setToken(token);
-      setState((prev) => ({ ...prev, token }));
+      // TODO: Implement API call
+      // const { token } = await authApi.refreshToken(storedRefreshToken);
+      // localStorage.setItem(TOKEN_KEY, token);
+      // apiClient.setToken(token);
+      // setState((prev) => ({ ...prev, token }));
     } catch (error) {
       // Refresh failed, logout user
       logout();
