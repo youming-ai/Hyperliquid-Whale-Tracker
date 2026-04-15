@@ -125,13 +125,14 @@ export const copyRouter = t.router({
       for (const alloc of allocations) {
         await copyService.addAllocation({
           strategyId: strategy.id,
+          userId,
           traderId: alloc.traderId,
           weight: alloc.weight,
         });
       }
 
       // Return the created strategy with allocations
-      const strategyWithAllocations = await copyService.getStrategyById(strategy.id);
+      const strategyWithAllocations = await copyService.getStrategyById(strategy.id, userId);
 
       return {
         id: strategyWithAllocations!.id,
@@ -202,7 +203,7 @@ export const copyRouter = t.router({
         updates.rebalanceThresholdBps = settings.rebalanceThresholdBps;
       }
 
-      const strategy = await copyService.updateStrategy(strategyId, updates);
+      const strategy = await copyService.updateStrategy(strategyId, userId, updates);
 
       return {
         success: true,
@@ -225,7 +226,7 @@ export const copyRouter = t.router({
       const { strategyId, timeframe, granularity } = input;
       const userId = ctx.user!.userId;
 
-      const perf = await copyService.getStrategyPerformance(strategyId);
+      const perf = await copyService.getStrategyPerformance(strategyId, userId);
 
       if (!perf) {
         throw new Error('Strategy not found');
@@ -249,6 +250,7 @@ export const copyRouter = t.router({
       // Get orders for timeseries data
       const { orders } = await copyService.getStrategyOrders({
         strategyId,
+        userId,
         limit: 1000,
       });
 
@@ -321,6 +323,7 @@ export const copyRouter = t.router({
 
       const { orders, total } = await copyService.getStrategyOrders({
         strategyId,
+        userId,
         limit,
         offset,
         status: status === 'all' ? undefined : (status as copyService.OrderStatus),
@@ -369,9 +372,9 @@ export const copyRouter = t.router({
         throw new Error('Allocation weights must sum to 1.0');
       }
 
-      // Get current strategy to verify ownership
-      const strategy = await copyService.getStrategyById(strategyId);
-      if (!strategy || strategy.userId !== userId) {
+      // Service layer enforces ownership; this still rejects unknown IDs.
+      const strategy = await copyService.getStrategyById(strategyId, userId);
+      if (!strategy) {
         throw new Error('Strategy not found or access denied');
       }
 
@@ -499,22 +502,18 @@ export const copyRouter = t.router({
       const userId = ctx.user!.userId;
       const { strategyId, action } = input;
 
-      // Get strategy to verify ownership
-      const strategy = await copyService.getStrategyById(strategyId);
-      if (!strategy || strategy.userId !== userId) {
-        throw new Error('Strategy not found or access denied');
-      }
-
+      // Ownership is enforced inside start/pause/stopStrategy; an error bubbles
+      // up if the user does not own this strategy.
       let updatedStrategy;
       switch (action) {
         case 'start':
-          updatedStrategy = await copyService.startStrategy(strategyId);
+          updatedStrategy = await copyService.startStrategy(strategyId, userId);
           break;
         case 'pause':
-          updatedStrategy = await copyService.pauseStrategy(strategyId);
+          updatedStrategy = await copyService.pauseStrategy(strategyId, userId);
           break;
         case 'terminate':
-          updatedStrategy = await copyService.stopStrategy(strategyId);
+          updatedStrategy = await copyService.stopStrategy(strategyId, userId);
           break;
       }
 

@@ -64,6 +64,7 @@ export interface UpdateStrategyInput {
 
 export interface CreateAllocationInput {
   strategyId: string;
+  userId: string; // owning user, enforced at the DB layer
   traderId: string;
   weight: number; // 0-1
 }
@@ -199,15 +200,16 @@ export async function getStrategiesByUser(userId: string): Promise<StrategyWithA
 /**
  * Get a single strategy by ID
  */
-export async function getStrategyById(strategyId: string): Promise<StrategyWithAllocations | null> {
-  const strategies = await getStrategiesByUser(strategyId); // This will return empty, need to fix
-  // Get strategy without user filter first
+export async function getStrategyById(
+  strategyId: string,
+  userId: string,
+): Promise<StrategyWithAllocations | null> {
   const db = getDatabaseConnection().getDatabase();
 
   const strategy = await db
     .select()
     .from(copyStrategies)
-    .where(eq(copyStrategies.id, strategyId))
+    .where(and(eq(copyStrategies.id, strategyId), eq(copyStrategies.userId, userId)))
     .limit(1);
 
   if (!strategy[0]) return null;
@@ -313,10 +315,12 @@ export async function createStrategy(input: CreateStrategyInput): Promise<CopySt
 }
 
 /**
- * Update a strategy
+ * Update a strategy. Scoped to the owning user to prevent IDOR.
+ * Throws if the strategy does not exist or does not belong to `userId`.
  */
 export async function updateStrategy(
   strategyId: string,
+  userId: string,
   input: UpdateStrategyInput,
 ): Promise<CopyStrategy> {
   const db = getDatabaseConnection().getDatabase();
@@ -330,27 +334,76 @@ export async function updateStrategy(
       minOrderUsd: input.minOrderUsd?.toString(),
       updatedAt: new Date(),
     } as NewCopyStrategy)
-    .where(eq(copyStrategies.id, strategyId))
+    .where(and(eq(copyStrategies.id, strategyId), eq(copyStrategies.userId, userId)))
     .returning();
+
+  if (!strategy) {
+    throw new Error('Strategy not found or access denied');
+  }
 
   return strategy;
 }
 
 /**
- * Delete a strategy
+ * Delete a strategy. Scoped to the owning user to prevent IDOR.
+ * Throws if the strategy does not exist or does not belong to `userId`.
  */
-export async function deleteStrategy(strategyId: string): Promise<void> {
+export async function deleteStrategy(strategyId: string, userId: string): Promise<void> {
   const db = getDatabaseConnection().getDatabase();
 
-  await db.delete(copyStrategies).where(eq(copyStrategies.id, strategyId));
+  const deleted = await db
+    .delete(copyStrategies)
+    .where(and(eq(copyStrategies.id, strategyId), eq(copyStrategies.userId, userId)))
+    .returning({ id: copyStrategies.id });
+
+  if (deleted.length === 0) {
+    throw new Error('Strategy not found or access denied');
+  }
 }
 
 /**
- * Add a trader allocation to a strategy
+ * Verify that a strategy belongs to `userId`. Throws otherwise.
+ * Use before allocation mutations so the user can't touch someone else's strategy.
+ */
+async function assertStrategyOwned(strategyId: string, userId: string): Promise<void> {
+  const db = getDatabaseConnection().getDatabase();
+  const rows = await db
+    .select({ id: copyStrategies.id })
+    .from(copyStrategies)
+    .where(and(eq(copyStrategies.id, strategyId), eq(copyStrategies.userId, userId)))
+    .limit(1);
+
+  if (rows.length === 0) {
+    throw new Error('Strategy not found or access denied');
+  }
+}
+
+/**
+ * Resolve the strategyId for an allocation and assert it is owned by `userId`.
+ * Returns the strategyId so callers can scope follow-up queries.
+ */
+async function assertAllocationOwned(allocationId: string, userId: string): Promise<string> {
+  const db = getDatabaseConnection().getDatabase();
+  const rows = await db
+    .select({ strategyId: copyAllocations.strategyId })
+    .from(copyAllocations)
+    .innerJoin(copyStrategies, eq(copyAllocations.strategyId, copyStrategies.id))
+    .where(and(eq(copyAllocations.id, allocationId), eq(copyStrategies.userId, userId)))
+    .limit(1);
+
+  if (rows.length === 0) {
+    throw new Error('Allocation not found or access denied');
+  }
+  return rows[0].strategyId;
+}
+
+/**
+ * Add a trader allocation to a strategy. Ownership of the strategy is enforced.
  */
 export async function addAllocation(input: CreateAllocationInput): Promise<CopyAllocation> {
-  const db = getDatabaseConnection().getDatabase();
+  await assertStrategyOwned(input.strategyId, input.userId);
 
+  const db = getDatabaseConnection().getDatabase();
   const [allocation] = await db
     .insert(copyAllocations)
     .values({
@@ -365,14 +418,16 @@ export async function addAllocation(input: CreateAllocationInput): Promise<CopyA
 }
 
 /**
- * Update an allocation
+ * Update an allocation. Ownership of the parent strategy is enforced.
  */
 export async function updateAllocation(
   allocationId: string,
+  userId: string,
   updates: { weight?: number; status?: AllocationStatus },
 ): Promise<CopyAllocation> {
-  const db = getDatabaseConnection().getDatabase();
+  await assertAllocationOwned(allocationId, userId);
 
+  const db = getDatabaseConnection().getDatabase();
   const [allocation] = await db
     .update(copyAllocations)
     .set({
@@ -387,47 +442,49 @@ export async function updateAllocation(
 }
 
 /**
- * Remove an allocation
+ * Remove an allocation. Ownership of the parent strategy is enforced.
  */
-export async function removeAllocation(allocationId: string): Promise<void> {
-  const db = getDatabaseConnection().getDatabase();
+export async function removeAllocation(allocationId: string, userId: string): Promise<void> {
+  await assertAllocationOwned(allocationId, userId);
 
+  const db = getDatabaseConnection().getDatabase();
   await db.delete(copyAllocations).where(eq(copyAllocations.id, allocationId));
 }
 
 /**
- * Start a strategy (set status to active)
+ * Start a strategy (set status to active). Ownership enforced via updateStrategy.
  */
-export async function startStrategy(strategyId: string): Promise<CopyStrategy> {
-  return updateStrategy(strategyId, { status: 'active' });
+export async function startStrategy(strategyId: string, userId: string): Promise<CopyStrategy> {
+  return updateStrategy(strategyId, userId, { status: 'active' });
 }
 
 /**
- * Pause a strategy (set status to paused)
+ * Pause a strategy (set status to paused). Ownership enforced via updateStrategy.
  */
-export async function pauseStrategy(strategyId: string): Promise<CopyStrategy> {
-  return updateStrategy(strategyId, { status: 'paused' });
+export async function pauseStrategy(strategyId: string, userId: string): Promise<CopyStrategy> {
+  return updateStrategy(strategyId, userId, { status: 'paused' });
 }
 
 /**
- * Stop a strategy (set status to terminated)
+ * Stop a strategy (set status to terminated). Ownership enforced via updateStrategy.
  */
-export async function stopStrategy(strategyId: string): Promise<CopyStrategy> {
-  return updateStrategy(strategyId, { status: 'terminated' });
+export async function stopStrategy(strategyId: string, userId: string): Promise<CopyStrategy> {
+  return updateStrategy(strategyId, userId, { status: 'terminated' });
 }
 
 /**
- * Get strategy performance
+ * Get strategy performance. Returns null if the strategy is not owned by `userId`.
  */
 export async function getStrategyPerformance(
   strategyId: string,
+  userId: string,
 ): Promise<StrategyPerformance | null> {
   const db = getDatabaseConnection().getDatabase();
 
   const strategy = await db
     .select()
     .from(copyStrategies)
-    .where(eq(copyStrategies.id, strategyId))
+    .where(and(eq(copyStrategies.id, strategyId), eq(copyStrategies.userId, userId)))
     .limit(1);
 
   if (!strategy[0]) return null;
@@ -472,22 +529,24 @@ export async function getStrategyPerformance(
 }
 
 /**
- * Get orders for a strategy
+ * Get orders for a strategy. Scoped by `userId` so a user can only see their own orders.
  */
 export interface GetStrategyOrdersOptions {
   strategyId: string;
+  userId: string;
   limit?: number;
   offset?: number;
   status?: OrderStatus;
 }
 
 export async function getStrategyOrders(options: GetStrategyOrdersOptions) {
-  const { strategyId, limit = 50, offset = 0, status } = options;
+  const { strategyId, userId, limit = 50, offset = 0, status } = options;
   const db = getDatabaseConnection().getDatabase();
 
+  const baseFilters = [eq(copyOrders.strategyId, strategyId), eq(copyOrders.userId, userId)];
   const whereClause = status
-    ? and(eq(copyOrders.strategyId, strategyId), eq(copyOrders.status, status))
-    : eq(copyOrders.strategyId, strategyId);
+    ? and(...baseFilters, eq(copyOrders.status, status))
+    : and(...baseFilters);
 
   const orders = await db
     .select()
@@ -509,15 +568,15 @@ export async function getStrategyOrders(options: GetStrategyOrdersOptions) {
 }
 
 /**
- * Get positions for a strategy
+ * Get positions for a strategy. Scoped by `userId`.
  */
-export async function getStrategyPositions(strategyId: string) {
+export async function getStrategyPositions(strategyId: string, userId: string) {
   const db = getDatabaseConnection().getDatabase();
 
   const positions = await db
     .select()
     .from(copyPositions)
-    .where(eq(copyPositions.strategyId, strategyId))
+    .where(and(eq(copyPositions.strategyId, strategyId), eq(copyPositions.userId, userId)))
     .orderBy(desc(copyPositions.openedAt));
 
   return positions;
@@ -617,15 +676,22 @@ export async function upsertCopyPosition(input: {
 }): Promise<CopyPosition> {
   const db = getDatabaseConnection().getDatabase();
 
-  // Check if position exists
+  // Find the currently-open position matching the full identity tuple. Including
+  // strategyId, side and the "not closed" check prevents three bugs:
+  //   * historical closed rows being revived for the same (user, wallet, symbol);
+  //   * two strategies on the same wallet/symbol colliding onto one row;
+  //   * flipping long<->short silently overwriting the opposite-side row.
   const existing = await db
     .select()
     .from(copyPositions)
     .where(
       and(
         eq(copyPositions.userId, input.userId),
+        eq(copyPositions.strategyId, input.strategyId),
         eq(copyPositions.agentWalletId, input.agentWalletId),
         eq(copyPositions.symbol, input.symbol),
+        eq(copyPositions.side, input.side),
+        sql`${copyPositions.closedAt} IS NULL`,
       ),
     )
     .limit(1);
