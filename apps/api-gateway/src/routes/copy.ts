@@ -100,36 +100,25 @@ export const copyRouter = t.router({
       const userId = ctx.user!.userId;
       const { name, description, mode, riskParams, settings, allocations } = input;
 
-      // Validate allocations sum to 1.0
-      const totalWeight = allocations.reduce((sum, alloc) => sum + alloc.weight, 0);
-      if (Math.abs(totalWeight - 1.0) > 0.0001) {
-        throw new Error('Allocation weights must sum to 1.0');
-      }
-
-      // Create strategy in database
-      const strategy = await copyService.createStrategy({
-        userId,
-        name,
-        description,
-        mode,
-        maxLeverage: riskParams.maxLeverage,
-        maxPositionUsd: riskParams.maxPositionUsd,
-        slippageBps: riskParams.slippageBps,
-        minOrderUsd: riskParams.minOrderUsd,
-        followNewEntriesOnly: settings.followNewEntriesOnly,
-        autoRebalance: settings.autoRebalance,
-        rebalanceThresholdBps: settings.rebalanceThresholdBps,
-      });
-
-      // Create allocations
-      for (const alloc of allocations) {
-        await copyService.addAllocation({
-          strategyId: strategy.id,
+      // Strategy + allocations are created atomically in one transaction.
+      // Weight invariants (per-weight range + mode-specific sum) are enforced
+      // inside the service, so we don't repeat them here.
+      const { strategy } = await copyService.createStrategyWithAllocations(
+        {
           userId,
-          traderId: alloc.traderId,
-          weight: alloc.weight,
-        });
-      }
+          name,
+          description,
+          mode,
+          maxLeverage: riskParams.maxLeverage,
+          maxPositionUsd: riskParams.maxPositionUsd,
+          slippageBps: riskParams.slippageBps,
+          minOrderUsd: riskParams.minOrderUsd,
+          followNewEntriesOnly: settings.followNewEntriesOnly,
+          autoRebalance: settings.autoRebalance,
+          rebalanceThresholdBps: settings.rebalanceThresholdBps,
+        },
+        allocations,
+      );
 
       // Return the created strategy with allocations
       const strategyWithAllocations = await copyService.getStrategyById(strategy.id, userId);

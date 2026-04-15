@@ -315,6 +315,115 @@ export async function createStrategy(input: CreateStrategyInput): Promise<CopySt
 }
 
 /**
+ * Per-allocation weight range ((0, 1]). Applied by both the aggregate
+ * `validateAllocationWeights` (for new strategies) and the single-allocation
+ * mutation paths (`addAllocation` / `updateAllocation`), so a caller can't
+ * slip an invalid weight in by updating one row at a time.
+ */
+function validateWeightRange(weight: number): void {
+  if (!(weight > 0 && weight <= 1)) {
+    throw new Error(`Allocation weight must be in (0, 1]; got ${weight}`);
+  }
+}
+
+/**
+ * Enforce the weight invariants for the full allocation set of a strategy.
+ *
+ * Portfolio mode: weights must sum to 1 (within 0.0001 tolerance for float
+ * round-off). Single-trader mode: exactly one allocation with weight=1.
+ *
+ * Callers that mutate one allocation at a time (addAllocation / updateAllocation)
+ * can only enforce the per-weight range via {@link validateWeightRange}; the
+ * sum invariant is a batch-level contract so it lives with
+ * `createStrategyWithAllocations` / a future `replaceAllocations`.
+ */
+export function validateAllocationWeights(
+  mode: StrategyMode,
+  allocations: Array<{ weight: number }>,
+): void {
+  if (allocations.length === 0) {
+    throw new Error('Strategy must have at least one allocation');
+  }
+  for (const a of allocations) validateWeightRange(a.weight);
+
+  if (mode === 'single_trader') {
+    if (allocations.length !== 1) {
+      throw new Error(
+        `single_trader strategies must have exactly one allocation; got ${allocations.length}`,
+      );
+    }
+    if (Math.abs(allocations[0].weight - 1) > 0.0001) {
+      throw new Error(
+        `single_trader allocation weight must be 1; got ${allocations[0].weight}`,
+      );
+    }
+    return;
+  }
+
+  // portfolio mode
+  const sum = allocations.reduce((acc, a) => acc + a.weight, 0);
+  if (Math.abs(sum - 1) > 0.0001) {
+    throw new Error(`Portfolio allocation weights must sum to 1; got ${sum.toFixed(4)}`);
+  }
+}
+
+/**
+ * Create a strategy together with its initial allocations, atomically.
+ *
+ * Either every row lands or none do; partial state (strategy without
+ * allocations, or half-inserted allocations) is no longer possible. Weight
+ * invariants are checked up front via {@link validateAllocationWeights}.
+ */
+export async function createStrategyWithAllocations(
+  input: CreateStrategyInput,
+  allocations: Array<{ traderId: string; weight: number }>,
+): Promise<{ strategy: CopyStrategy; allocations: CopyAllocation[] }> {
+  validateAllocationWeights(input.mode, allocations);
+
+  const db = getDatabaseConnection().getDatabase();
+
+  return db.transaction(async (tx) => {
+    const [strategy] = await tx
+      .insert(copyStrategies)
+      .values({
+        userId: input.userId,
+        name: input.name,
+        description: input.description,
+        mode: input.mode,
+        maxLeverage: input.maxLeverage?.toString(),
+        maxPositionUsd: input.maxPositionUsd?.toString(),
+        slippageBps: input.slippageBps,
+        minOrderUsd: input.minOrderUsd?.toString(),
+        followNewEntriesOnly: input.followNewEntriesOnly,
+        autoRebalance: input.autoRebalance,
+        rebalanceThresholdBps: input.rebalanceThresholdBps,
+        agentWalletId: input.agentWalletId,
+        status: 'paused',
+      } as NewCopyStrategy)
+      .returning();
+
+    // Insert all allocations in one round-trip. Drizzle returns them in the
+    // same order they were given, so the output matches the input zipping.
+    const allocationRows = await tx
+      .insert(copyAllocations)
+      .values(
+        allocations.map(
+          (a) =>
+            ({
+              strategyId: strategy.id,
+              traderId: a.traderId,
+              weight: a.weight.toString(),
+              status: 'active',
+            }) as NewCopyAllocation,
+        ),
+      )
+      .returning();
+
+    return { strategy, allocations: allocationRows };
+  });
+}
+
+/**
  * Update a strategy. Scoped to the owning user to prevent IDOR.
  * Throws if the strategy does not exist or does not belong to `userId`.
  */
@@ -399,8 +508,12 @@ async function assertAllocationOwned(allocationId: string, userId: string): Prom
 
 /**
  * Add a trader allocation to a strategy. Ownership of the strategy is enforced.
+ * Weight must be in (0, 1]; callers that change a whole strategy's allocation
+ * set should use {@link createStrategyWithAllocations} to also check the
+ * sum-to-1 invariant.
  */
 export async function addAllocation(input: CreateAllocationInput): Promise<CopyAllocation> {
+  validateWeightRange(input.weight);
   await assertStrategyOwned(input.strategyId, input.userId);
 
   const db = getDatabaseConnection().getDatabase();
@@ -419,12 +532,15 @@ export async function addAllocation(input: CreateAllocationInput): Promise<CopyA
 
 /**
  * Update an allocation. Ownership of the parent strategy is enforced.
+ * If weight is being updated, the per-weight range is enforced; the sum-to-1
+ * invariant across a strategy is the caller's responsibility.
  */
 export async function updateAllocation(
   allocationId: string,
   userId: string,
   updates: { weight?: number; status?: AllocationStatus },
 ): Promise<CopyAllocation> {
+  if (updates.weight !== undefined) validateWeightRange(updates.weight);
   await assertAllocationOwned(allocationId, userId);
 
   const db = getDatabaseConnection().getDatabase();
