@@ -12,6 +12,16 @@ build/
 .vinxi/
 *.tsbuildinfo
 
+# Compiled TypeScript output (source packages should only ship .ts in src/)
+packages/**/src/**/*.js
+packages/**/src/**/*.js.map
+packages/**/src/**/*.d.ts
+packages/**/src/**/*.d.ts.map
+
+# Vite dev-server timestamped temp files
+**/vite.config.ts.timestamp-*.mjs
+**/vite.config.js.timestamp-*.mjs
+
 # =============================================================================
 # Environment files
 # =============================================================================
