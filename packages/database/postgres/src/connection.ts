@@ -220,3 +220,6 @@ process.on('SIGTERM', async () => {
 });
 
 export { DatabaseConnection as PostgresConnection };
+
+// Alias for consistency with the package exports
+export { createDatabaseConnection as createPostgresConnection };
