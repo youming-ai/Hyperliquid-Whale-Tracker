@@ -25,7 +25,7 @@ import {
   traderStats,
   traderTrades,
 } from '@hyperdash/database';
-import { and, desc, eq, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import { getDatabaseConnection } from './connection';
 
 export type StrategyStatus = 'paused' | 'active' | 'error' | 'terminated';
@@ -108,7 +108,113 @@ export interface StrategyPerformance {
 }
 
 /**
- * Get all strategies for a user
+ * Batch-hydrate a list of {@link CopyStrategy} rows with their allocations
+ * (each with its trader stats) and agent wallets.
+ *
+ * Three round-trips total regardless of how many strategies or allocations
+ * are in play — previously this path was 1 + N + M*N queries where N =
+ * strategies and M = allocations per strategy, which produced 60+ queries
+ * for a user with 10 strategies × 5 allocations.
+ */
+async function hydrateStrategies(
+  strategies: CopyStrategy[],
+): Promise<StrategyWithAllocations[]> {
+  if (strategies.length === 0) return [];
+
+  const db = getDatabaseConnection().getDatabase();
+  const strategyIds = strategies.map((s) => s.id);
+  const agentWalletIds = strategies
+    .map((s) => s.agentWalletId)
+    .filter((id): id is string => !!id);
+
+  // 1) Every allocation for every input strategy.
+  const allocationRows = await db
+    .select({
+      id: copyAllocations.id,
+      strategyId: copyAllocations.strategyId,
+      traderId: copyAllocations.traderId,
+      weight: copyAllocations.weight,
+      status: copyAllocations.status,
+      allocatedPnl: copyAllocations.allocatedPnl,
+      allocatedFees: copyAllocations.allocatedFees,
+    })
+    .from(copyAllocations)
+    .where(inArray(copyAllocations.strategyId, strategyIds));
+
+  // 2) Every distinct trader referenced by those allocations.
+  const traderIds = Array.from(new Set(allocationRows.map((a) => a.traderId)));
+  const traderRows =
+    traderIds.length > 0
+      ? await db
+          .select({
+            traderId: traderStats.traderId,
+            address: traderStats.address,
+            pnl7d: traderStats.pnl7d,
+            pnl30d: traderStats.pnl30d,
+            winrate: traderStats.winrate,
+            totalTrades: traderStats.totalTrades,
+          })
+          .from(traderStats)
+          .where(inArray(traderStats.traderId, traderIds))
+      : [];
+
+  // 3) Every agent wallet referenced by any strategy.
+  const walletRows =
+    agentWalletIds.length > 0
+      ? await db
+          .select({
+            id: agentWallets.id,
+            exchange: agentWallets.exchange,
+            address: agentWallets.address,
+            status: agentWallets.status,
+          })
+          .from(agentWallets)
+          .where(inArray(agentWallets.id, agentWalletIds))
+      : [];
+
+  const tradersById = new Map(traderRows.map((t) => [t.traderId, t]));
+  const walletsById = new Map(walletRows.map((w) => [w.id, w]));
+  const allocationsByStrategyId = new Map<string, typeof allocationRows>();
+  for (const a of allocationRows) {
+    const list = allocationsByStrategyId.get(a.strategyId) ?? [];
+    list.push(a);
+    allocationsByStrategyId.set(a.strategyId, list);
+  }
+
+  return strategies.map((strategy) => {
+    const rows = allocationsByStrategyId.get(strategy.id) ?? [];
+    return {
+      ...strategy,
+      allocations: rows.map((allocation) => {
+        const trader = tradersById.get(allocation.traderId);
+        return {
+          id: allocation.id,
+          traderId: allocation.traderId,
+          weight: Number(allocation.weight),
+          status: allocation.status as AllocationStatus,
+          allocatedPnl: Number(allocation.allocatedPnl || 0),
+          allocatedFees: Number(allocation.allocatedFees || 0),
+          trader: trader
+            ? {
+                traderId: trader.traderId,
+                address: trader.address,
+                pnl7d: Number(trader.pnl7d || 0),
+                pnl30d: Number(trader.pnl30d || 0),
+                winrate: Number(trader.winrate || 0),
+                totalTrades: trader.totalTrades || 0,
+              }
+            : null,
+        };
+      }),
+      agentWallet: strategy.agentWalletId
+        ? (walletsById.get(strategy.agentWalletId) ?? null)
+        : null,
+    };
+  });
+}
+
+/**
+ * Get all strategies owned by `userId`, hydrated with allocations and wallet.
  */
 export async function getStrategiesByUser(userId: string): Promise<StrategyWithAllocations[]> {
   const db = getDatabaseConnection().getDatabase();
@@ -119,86 +225,12 @@ export async function getStrategiesByUser(userId: string): Promise<StrategyWithA
     .where(eq(copyStrategies.userId, userId))
     .orderBy(desc(copyStrategies.createdAt));
 
-  const result: StrategyWithAllocations[] = [];
-
-  for (const strategy of strategies) {
-    // Get allocations
-    const allocations = await db
-      .select({
-        id: copyAllocations.id,
-        traderId: copyAllocations.traderId,
-        weight: copyAllocations.weight,
-        status: copyAllocations.status,
-        allocatedPnl: copyAllocations.allocatedPnl,
-        allocatedFees: copyAllocations.allocatedFees,
-      })
-      .from(copyAllocations)
-      .where(eq(copyAllocations.strategyId, strategy.id));
-
-    // Get trader stats for each allocation
-    const allocationsWithTraders = await Promise.all(
-      allocations.map(async (allocation) => {
-        const trader = await db
-          .select({
-            traderId: traderStats.traderId,
-            address: traderStats.address,
-            pnl7d: traderStats.pnl7d,
-            pnl30d: traderStats.pnl30d,
-            winrate: traderStats.winrate,
-            totalTrades: traderStats.totalTrades,
-          })
-          .from(traderStats)
-          .where(eq(traderStats.traderId, allocation.traderId))
-          .limit(1);
-
-        return {
-          id: allocation.id,
-          traderId: allocation.traderId,
-          weight: Number(allocation.weight),
-          status: allocation.status as AllocationStatus,
-          allocatedPnl: Number(allocation.allocatedPnl || 0),
-          allocatedFees: Number(allocation.allocatedFees || 0),
-          trader: trader[0]
-            ? {
-                traderId: trader[0].traderId,
-                address: trader[0].address,
-                pnl7d: Number(trader[0].pnl7d || 0),
-                pnl30d: Number(trader[0].pnl30d || 0),
-                winrate: Number(trader[0].winrate || 0),
-                totalTrades: trader[0].totalTrades || 0,
-              }
-            : null,
-        };
-      }),
-    );
-
-    // Get agent wallet
-    const agentWallet = strategy.agentWalletId
-      ? await db
-          .select({
-            id: agentWallets.id,
-            exchange: agentWallets.exchange,
-            address: agentWallets.address,
-            status: agentWallets.status,
-          })
-          .from(agentWallets)
-          .where(eq(agentWallets.id, strategy.agentWalletId))
-          .limit(1)
-          .then((rows) => rows[0] || null)
-      : null;
-
-    result.push({
-      ...strategy,
-      allocations: allocationsWithTraders,
-      agentWallet,
-    });
-  }
-
-  return result;
+  return hydrateStrategies(strategies);
 }
 
 /**
- * Get a single strategy by ID
+ * Get a single strategy by ID, hydrated. Returns null if the strategy does
+ * not exist or does not belong to `userId`.
  */
 export async function getStrategyById(
   strategyId: string,
@@ -206,84 +238,16 @@ export async function getStrategyById(
 ): Promise<StrategyWithAllocations | null> {
   const db = getDatabaseConnection().getDatabase();
 
-  const strategy = await db
+  const strategies = await db
     .select()
     .from(copyStrategies)
     .where(and(eq(copyStrategies.id, strategyId), eq(copyStrategies.userId, userId)))
     .limit(1);
 
-  if (!strategy[0]) return null;
+  if (!strategies[0]) return null;
 
-  // Get allocations
-  const allocations = await db
-    .select({
-      id: copyAllocations.id,
-      traderId: copyAllocations.traderId,
-      weight: copyAllocations.weight,
-      status: copyAllocations.status,
-      allocatedPnl: copyAllocations.allocatedPnl,
-      allocatedFees: copyAllocations.allocatedFees,
-    })
-    .from(copyAllocations)
-    .where(eq(copyAllocations.strategyId, strategyId));
-
-  // Get trader stats for each allocation
-  const allocationsWithTraders = await Promise.all(
-    allocations.map(async (allocation) => {
-      const trader = await db
-        .select({
-          traderId: traderStats.traderId,
-          address: traderStats.address,
-          pnl7d: traderStats.pnl7d,
-          pnl30d: traderStats.pnl30d,
-          winrate: traderStats.winrate,
-          totalTrades: traderStats.totalTrades,
-        })
-        .from(traderStats)
-        .where(eq(traderStats.traderId, allocation.traderId))
-        .limit(1);
-
-      return {
-        id: allocation.id,
-        traderId: allocation.traderId,
-        weight: Number(allocation.weight),
-        status: allocation.status as AllocationStatus,
-        allocatedPnl: Number(allocation.allocatedPnl || 0),
-        allocatedFees: Number(allocation.allocatedFees || 0),
-        trader: trader[0]
-          ? {
-              traderId: trader[0].traderId,
-              address: trader[0].address,
-              pnl7d: Number(trader[0].pnl7d || 0),
-              pnl30d: Number(trader[0].pnl30d || 0),
-              winrate: Number(trader[0].winrate || 0),
-              totalTrades: trader[0].totalTrades || 0,
-            }
-          : null,
-      };
-    }),
-  );
-
-  // Get agent wallet
-  const agentWallet = strategy[0].agentWalletId
-    ? await db
-        .select({
-          id: agentWallets.id,
-          exchange: agentWallets.exchange,
-          address: agentWallets.address,
-          status: agentWallets.status,
-        })
-        .from(agentWallets)
-        .where(eq(agentWallets.id, strategy[0].agentWalletId))
-        .limit(1)
-        .then((rows) => rows[0] || null)
-    : null;
-
-  return {
-    ...strategy[0],
-    allocations: allocationsWithTraders,
-    agentWallet,
-  };
+  const [hydrated] = await hydrateStrategies(strategies);
+  return hydrated ?? null;
 }
 
 /**
