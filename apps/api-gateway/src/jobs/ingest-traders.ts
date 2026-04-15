@@ -15,7 +15,7 @@ import { fetchTraderData, fillToTraderTradeRow } from '../services/hyperliquid';
 
 // Known whale/active trader addresses on Hyperliquid
 // These can be expanded over time or fetched from external sources
-const KNOWN_WHALE_ADDRESSES = [
+const KNOWN_WHALE_ADDRESSES: string[] = [
   // Add known Hyperliquid whale addresses here
   // Example: "0x1234567890abcdef1234567890abcdef12345678"
 ];
@@ -40,7 +40,7 @@ interface IngestionResult {
  */
 async function ingestTraderAddress(
   address: string,
-  db: ReturnType<typeof createDatabaseConnection>['getDatabase'],
+  db: ReturnType<ReturnType<typeof createPostgresConnection>['getDatabase']>,
 ): Promise<{ success: boolean; error?: string; updated: boolean }> {
   const maxRetries = INGESTION_CONFIG.retryAttempts;
 
