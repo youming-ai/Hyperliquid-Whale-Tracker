@@ -1,5 +1,3 @@
-version: "3.8"
-
 services:
   # PostgreSQL
   postgres:
@@ -39,57 +37,6 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-
-  # API Gateway
-  api-gateway:
-    build:
-      context: ./apps/api-gateway
-      dockerfile: Dockerfile
-    container_name: hyperdash-api-gateway
-    restart: unless-stopped
-    environment:
-      NODE_ENV: development
-      PORT: 3000
-      POSTGRES_HOST: postgres
-      POSTGRES_PORT: 5432
-      POSTGRES_DATABASE: hyperdash
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      REDIS_URL: redis://redis:6379
-      JWT_SECRET: dev-jwt-secret-key-not-for-production
-    ports:
-      - "3000:3000"
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    networks:
-      - hyperdash-network
-
-  # Copy Engine (Go)
-  copy-engine:
-    build:
-      context: ./apps/copy-engine
-      dockerfile: Dockerfile
-    container_name: hyperdash-copy-engine
-    restart: unless-stopped
-    environment:
-      PORT: 3006
-      POSTGRES_HOST: postgres
-      POSTGRES_PORT: 5432
-      POSTGRES_DATABASE: hyperdash
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    networks:
-      - hyperdash-network
 
 networks:
   hyperdash-network:

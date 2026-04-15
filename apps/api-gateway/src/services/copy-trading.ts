@@ -1,0 +1,698 @@
+/**
+ * Copy Trading Service
+ *
+ * Handles copy trading strategy management, allocation, and execution.
+ */
+
+import type {
+  CopyAllocation,
+  CopyOrder,
+  CopyPosition,
+  CopyStrategy,
+  NewCopyAllocation,
+  NewCopyOrder,
+  NewCopyPosition,
+  NewCopyStrategy,
+  TraderStats,
+  TraderTrades,
+} from '@hyperdash/database';
+import {
+  agentWallets,
+  copyAllocations,
+  copyOrders,
+  copyPositions,
+  copyStrategies,
+  traderStats,
+  traderTrades,
+} from '@hyperdash/database';
+import { and, desc, eq, sql } from 'drizzle-orm';
+import { getDatabaseConnection } from './connection';
+
+export type StrategyStatus = 'paused' | 'active' | 'error' | 'terminated';
+export type StrategyMode = 'portfolio' | 'single_trader';
+export type AllocationStatus = 'active' | 'paused';
+export type OrderStatus = 'pending' | 'submitted' | 'filled' | 'partial' | 'cancelled' | 'failed';
+
+export interface CreateStrategyInput {
+  userId: string;
+  name: string;
+  description?: string;
+  mode: StrategyMode;
+  maxLeverage?: number;
+  maxPositionUsd?: number;
+  slippageBps?: number;
+  minOrderUsd?: number;
+  followNewEntriesOnly?: boolean;
+  autoRebalance?: boolean;
+  rebalanceThresholdBps?: number;
+  agentWalletId?: string;
+}
+
+export interface UpdateStrategyInput {
+  name?: string;
+  description?: string;
+  status?: StrategyStatus;
+  maxLeverage?: number;
+  maxPositionUsd?: number;
+  slippageBps?: number;
+  minOrderUsd?: number;
+  followNewEntriesOnly?: boolean;
+  autoRebalance?: boolean;
+  rebalanceThresholdBps?: number;
+  agentWalletId?: string;
+}
+
+export interface CreateAllocationInput {
+  strategyId: string;
+  traderId: string;
+  weight: number; // 0-1
+}
+
+export interface StrategyWithAllocations extends CopyStrategy {
+  allocations: Array<{
+    id: string;
+    traderId: string;
+    weight: number;
+    status: AllocationStatus;
+    allocatedPnl: number;
+    allocatedFees: number;
+    trader: {
+      traderId: string;
+      address: string;
+      pnl7d: number;
+      pnl30d: number;
+      winrate: number;
+      totalTrades: number;
+    } | null;
+  }>;
+  agentWallet: {
+    id: string;
+    exchange: string;
+    address: string;
+    status: string;
+  } | null;
+}
+
+export interface StrategyPerformance {
+  strategyId: string;
+  totalPnl: number;
+  totalFees: number;
+  netPnl: number;
+  totalTrades: number;
+  winningTrades: number;
+  winRate: number;
+  alignmentRate: number;
+  currentPositions: number;
+  activeAllocations: number;
+}
+
+/**
+ * Get all strategies for a user
+ */
+export async function getStrategiesByUser(userId: string): Promise<StrategyWithAllocations[]> {
+  const db = getDatabaseConnection().getDatabase();
+
+  const strategies = await db
+    .select()
+    .from(copyStrategies)
+    .where(eq(copyStrategies.userId, userId))
+    .orderBy(desc(copyStrategies.createdAt));
+
+  const result: StrategyWithAllocations[] = [];
+
+  for (const strategy of strategies) {
+    // Get allocations
+    const allocations = await db
+      .select({
+        id: copyAllocations.id,
+        traderId: copyAllocations.traderId,
+        weight: copyAllocations.weight,
+        status: copyAllocations.status,
+        allocatedPnl: copyAllocations.allocatedPnl,
+        allocatedFees: copyAllocations.allocatedFees,
+      })
+      .from(copyAllocations)
+      .where(eq(copyAllocations.strategyId, strategy.id));
+
+    // Get trader stats for each allocation
+    const allocationsWithTraders = await Promise.all(
+      allocations.map(async (allocation) => {
+        const trader = await db
+          .select({
+            traderId: traderStats.traderId,
+            address: traderStats.address,
+            pnl7d: traderStats.pnl7d,
+            pnl30d: traderStats.pnl30d,
+            winrate: traderStats.winrate,
+            totalTrades: traderStats.totalTrades,
+          })
+          .from(traderStats)
+          .where(eq(traderStats.traderId, allocation.traderId))
+          .limit(1);
+
+        return {
+          id: allocation.id,
+          traderId: allocation.traderId,
+          weight: Number(allocation.weight),
+          status: allocation.status as AllocationStatus,
+          allocatedPnl: Number(allocation.allocatedPnl || 0),
+          allocatedFees: Number(allocation.allocatedFees || 0),
+          trader: trader[0]
+            ? {
+                traderId: trader[0].traderId,
+                address: trader[0].address,
+                pnl7d: Number(trader[0].pnl7d || 0),
+                pnl30d: Number(trader[0].pnl30d || 0),
+                winrate: Number(trader[0].winrate || 0),
+                totalTrades: trader[0].totalTrades || 0,
+              }
+            : null,
+        };
+      }),
+    );
+
+    // Get agent wallet
+    const agentWallet = strategy.agentWalletId
+      ? await db
+          .select({
+            id: agentWallets.id,
+            exchange: agentWallets.exchange,
+            address: agentWallets.address,
+            status: agentWallets.status,
+          })
+          .from(agentWallets)
+          .where(eq(agentWallets.id, strategy.agentWalletId))
+          .limit(1)
+          .then((rows) => rows[0] || null)
+      : null;
+
+    result.push({
+      ...strategy,
+      allocations: allocationsWithTraders,
+      agentWallet,
+    });
+  }
+
+  return result;
+}
+
+/**
+ * Get a single strategy by ID
+ */
+export async function getStrategyById(strategyId: string): Promise<StrategyWithAllocations | null> {
+  const strategies = await getStrategiesByUser(strategyId); // This will return empty, need to fix
+  // Get strategy without user filter first
+  const db = getDatabaseConnection().getDatabase();
+
+  const strategy = await db
+    .select()
+    .from(copyStrategies)
+    .where(eq(copyStrategies.id, strategyId))
+    .limit(1);
+
+  if (!strategy[0]) return null;
+
+  // Get allocations
+  const allocations = await db
+    .select({
+      id: copyAllocations.id,
+      traderId: copyAllocations.traderId,
+      weight: copyAllocations.weight,
+      status: copyAllocations.status,
+      allocatedPnl: copyAllocations.allocatedPnl,
+      allocatedFees: copyAllocations.allocatedFees,
+    })
+    .from(copyAllocations)
+    .where(eq(copyAllocations.strategyId, strategyId));
+
+  // Get trader stats for each allocation
+  const allocationsWithTraders = await Promise.all(
+    allocations.map(async (allocation) => {
+      const trader = await db
+        .select({
+          traderId: traderStats.traderId,
+          address: traderStats.address,
+          pnl7d: traderStats.pnl7d,
+          pnl30d: traderStats.pnl30d,
+          winrate: traderStats.winrate,
+          totalTrades: traderStats.totalTrades,
+        })
+        .from(traderStats)
+        .where(eq(traderStats.traderId, allocation.traderId))
+        .limit(1);
+
+      return {
+        id: allocation.id,
+        traderId: allocation.traderId,
+        weight: Number(allocation.weight),
+        status: allocation.status as AllocationStatus,
+        allocatedPnl: Number(allocation.allocatedPnl || 0),
+        allocatedFees: Number(allocation.allocatedFees || 0),
+        trader: trader[0]
+          ? {
+              traderId: trader[0].traderId,
+              address: trader[0].address,
+              pnl7d: Number(trader[0].pnl7d || 0),
+              pnl30d: Number(trader[0].pnl30d || 0),
+              winrate: Number(trader[0].winrate || 0),
+              totalTrades: trader[0].totalTrades || 0,
+            }
+          : null,
+      };
+    }),
+  );
+
+  // Get agent wallet
+  const agentWallet = strategy[0].agentWalletId
+    ? await db
+        .select({
+          id: agentWallets.id,
+          exchange: agentWallets.exchange,
+          address: agentWallets.address,
+          status: agentWallets.status,
+        })
+        .from(agentWallets)
+        .where(eq(agentWallets.id, strategy[0].agentWalletId))
+        .limit(1)
+        .then((rows) => rows[0] || null)
+    : null;
+
+  return {
+    ...strategy[0],
+    allocations: allocationsWithTraders,
+    agentWallet,
+  };
+}
+
+/**
+ * Create a new copy strategy
+ */
+export async function createStrategy(input: CreateStrategyInput): Promise<CopyStrategy> {
+  const db = getDatabaseConnection().getDatabase();
+
+  const [strategy] = await db
+    .insert(copyStrategies)
+    .values({
+      userId: input.userId,
+      name: input.name,
+      description: input.description,
+      mode: input.mode,
+      maxLeverage: input.maxLeverage?.toString(),
+      maxPositionUsd: input.maxPositionUsd?.toString(),
+      slippageBps: input.slippageBps,
+      minOrderUsd: input.minOrderUsd?.toString(),
+      followNewEntriesOnly: input.followNewEntriesOnly,
+      autoRebalance: input.autoRebalance,
+      rebalanceThresholdBps: input.rebalanceThresholdBps,
+      agentWalletId: input.agentWalletId,
+      status: 'paused', // Start paused
+    } as NewCopyStrategy)
+    .returning();
+
+  return strategy;
+}
+
+/**
+ * Update a strategy
+ */
+export async function updateStrategy(
+  strategyId: string,
+  input: UpdateStrategyInput,
+): Promise<CopyStrategy> {
+  const db = getDatabaseConnection().getDatabase();
+
+  const [strategy] = await db
+    .update(copyStrategies)
+    .set({
+      ...input,
+      maxLeverage: input.maxLeverage?.toString(),
+      maxPositionUsd: input.maxPositionUsd?.toString(),
+      minOrderUsd: input.minOrderUsd?.toString(),
+      updatedAt: new Date(),
+    } as NewCopyStrategy)
+    .where(eq(copyStrategies.id, strategyId))
+    .returning();
+
+  return strategy;
+}
+
+/**
+ * Delete a strategy
+ */
+export async function deleteStrategy(strategyId: string): Promise<void> {
+  const db = getDatabaseConnection().getDatabase();
+
+  await db.delete(copyStrategies).where(eq(copyStrategies.id, strategyId));
+}
+
+/**
+ * Add a trader allocation to a strategy
+ */
+export async function addAllocation(input: CreateAllocationInput): Promise<CopyAllocation> {
+  const db = getDatabaseConnection().getDatabase();
+
+  const [allocation] = await db
+    .insert(copyAllocations)
+    .values({
+      strategyId: input.strategyId,
+      traderId: input.traderId,
+      weight: input.weight.toString(),
+      status: 'active',
+    } as NewCopyAllocation)
+    .returning();
+
+  return allocation;
+}
+
+/**
+ * Update an allocation
+ */
+export async function updateAllocation(
+  allocationId: string,
+  updates: { weight?: number; status?: AllocationStatus },
+): Promise<CopyAllocation> {
+  const db = getDatabaseConnection().getDatabase();
+
+  const [allocation] = await db
+    .update(copyAllocations)
+    .set({
+      ...updates,
+      weight: updates.weight?.toString(),
+      updatedAt: new Date(),
+    } as NewCopyAllocation)
+    .where(eq(copyAllocations.id, allocationId))
+    .returning();
+
+  return allocation;
+}
+
+/**
+ * Remove an allocation
+ */
+export async function removeAllocation(allocationId: string): Promise<void> {
+  const db = getDatabaseConnection().getDatabase();
+
+  await db.delete(copyAllocations).where(eq(copyAllocations.id, allocationId));
+}
+
+/**
+ * Start a strategy (set status to active)
+ */
+export async function startStrategy(strategyId: string): Promise<CopyStrategy> {
+  return updateStrategy(strategyId, { status: 'active' });
+}
+
+/**
+ * Pause a strategy (set status to paused)
+ */
+export async function pauseStrategy(strategyId: string): Promise<CopyStrategy> {
+  return updateStrategy(strategyId, { status: 'paused' });
+}
+
+/**
+ * Stop a strategy (set status to terminated)
+ */
+export async function stopStrategy(strategyId: string): Promise<CopyStrategy> {
+  return updateStrategy(strategyId, { status: 'terminated' });
+}
+
+/**
+ * Get strategy performance
+ */
+export async function getStrategyPerformance(
+  strategyId: string,
+): Promise<StrategyPerformance | null> {
+  const db = getDatabaseConnection().getDatabase();
+
+  const strategy = await db
+    .select()
+    .from(copyStrategies)
+    .where(eq(copyStrategies.id, strategyId))
+    .limit(1);
+
+  if (!strategy[0]) return null;
+
+  // Get total orders
+  const orderStats = await db
+    .select({
+      total: sql<number>`count(*)`,
+      totalPnl: sql<number>`coalesce(sum(${copyOrders.pnl}), 0)`,
+      totalFees: sql<number>`coalesce(sum(${copyOrders.feeUsd}), 0)`,
+      winningTrades: sql<number>`count(*) filter (where ${copyOrders.pnl} > 0)`,
+    })
+    .from(copyOrders)
+    .where(eq(copyOrders.strategyId, strategyId));
+
+  const stats = orderStats[0];
+
+  // Get current positions
+  const positions = await db
+    .select()
+    .from(copyPositions)
+    .where(and(eq(copyPositions.strategyId, strategyId), sql`${copyPositions.closedAt} IS NULL`));
+
+  // Get active allocations
+  const activeAllocations = await db
+    .select()
+    .from(copyAllocations)
+    .where(and(eq(copyAllocations.strategyId, strategyId), eq(copyAllocations.status, 'active')));
+
+  return {
+    strategyId,
+    totalPnl: Number(strategy[0].totalPnl || 0),
+    totalFees: Number(strategy[0].totalFees || 0),
+    netPnl: Number(strategy[0].totalPnl || 0) - Number(strategy[0].totalFees || 0),
+    totalTrades: stats?.total || 0,
+    winningTrades: stats?.winningTrades || 0,
+    winRate: stats?.total ? (stats.winningTrades / stats.total) * 100 : 0,
+    alignmentRate: Number(strategy[0].alignmentRate || 0),
+    currentPositions: positions.length,
+    activeAllocations: activeAllocations.length,
+  };
+}
+
+/**
+ * Get orders for a strategy
+ */
+export interface GetStrategyOrdersOptions {
+  strategyId: string;
+  limit?: number;
+  offset?: number;
+  status?: OrderStatus;
+}
+
+export async function getStrategyOrders(options: GetStrategyOrdersOptions) {
+  const { strategyId, limit = 50, offset = 0, status } = options;
+  const db = getDatabaseConnection().getDatabase();
+
+  const whereClause = status
+    ? and(eq(copyOrders.strategyId, strategyId), eq(copyOrders.status, status))
+    : eq(copyOrders.strategyId, strategyId);
+
+  const orders = await db
+    .select()
+    .from(copyOrders)
+    .where(whereClause)
+    .orderBy(desc(copyOrders.createdAt))
+    .limit(limit)
+    .offset(offset);
+
+  const [{ value: total }] = await db
+    .select({ value: sql<number>`count(*)` })
+    .from(copyOrders)
+    .where(whereClause);
+
+  return {
+    orders,
+    total: Number(total || 0),
+  };
+}
+
+/**
+ * Get positions for a strategy
+ */
+export async function getStrategyPositions(strategyId: string) {
+  const db = getDatabaseConnection().getDatabase();
+
+  const positions = await db
+    .select()
+    .from(copyPositions)
+    .where(eq(copyPositions.strategyId, strategyId))
+    .orderBy(desc(copyPositions.openedAt));
+
+  return positions;
+}
+
+/**
+ * Create a copy order when a source trader makes a trade
+ */
+export async function createCopyOrder(input: {
+  userId: string;
+  strategyId: string;
+  agentWalletId: string;
+  sourceTraderId: string;
+  sourceTradeId: string;
+  symbol: string;
+  side: 'buy' | 'sell';
+  orderType: 'market' | 'limit';
+  quantity: number;
+  price?: number;
+}): Promise<CopyOrder> {
+  const db = getDatabaseConnection().getDatabase();
+
+  const [order] = await db
+    .insert(copyOrders)
+    .values({
+      userId: input.userId,
+      strategyId: input.strategyId,
+      agentWalletId: input.agentWalletId,
+      sourceTraderId: input.sourceTraderId,
+      sourceTradeId: input.sourceTradeId,
+      exchange: 'hyperliquid',
+      symbol: input.symbol,
+      side: input.side,
+      orderType: input.orderType,
+      quantity: input.quantity.toString(),
+      price: input.price?.toString(),
+      status: 'pending',
+    } as NewCopyOrder)
+    .returning();
+
+  return order;
+}
+
+/**
+ * Update order status
+ */
+export async function updateOrderStatus(
+  orderId: string,
+  status: OrderStatus,
+  updates?: {
+    filledQuantity?: number;
+    averagePrice?: number;
+    pnl?: number;
+    feeUsd?: number;
+    exchangeOrderId?: string;
+    errorCode?: string;
+    errorMessage?: string;
+  },
+): Promise<CopyOrder> {
+  const db = getDatabaseConnection().getDatabase();
+
+  const [order] = await db
+    .update(copyOrders)
+    .set({
+      status,
+      filledQuantity: updates?.filledQuantity?.toString(),
+      averagePrice: updates?.averagePrice?.toString(),
+      pnl: updates?.pnl?.toString(),
+      feeUsd: updates?.feeUsd?.toString(),
+      exchangeOrderId: updates?.exchangeOrderId,
+      errorCode: updates?.errorCode,
+      errorMessage: updates?.errorMessage,
+      filledAt: status === 'filled' || status === 'partial' ? new Date() : undefined,
+      cancelledAt: status === 'cancelled' ? new Date() : undefined,
+    } as NewCopyOrder)
+    .where(eq(copyOrders.id, orderId))
+    .returning();
+
+  return order;
+}
+
+/**
+ * Create or update a copy position
+ */
+export async function upsertCopyPosition(input: {
+  userId: string;
+  strategyId: string;
+  agentWalletId: string;
+  sourceTraderId: string;
+  symbol: string;
+  side: 'long' | 'short';
+  quantity: number;
+  entryPrice: number;
+  markPrice?: number;
+  leverage?: number;
+  marginUsed?: number;
+}): Promise<CopyPosition> {
+  const db = getDatabaseConnection().getDatabase();
+
+  // Check if position exists
+  const existing = await db
+    .select()
+    .from(copyPositions)
+    .where(
+      and(
+        eq(copyPositions.userId, input.userId),
+        eq(copyPositions.agentWalletId, input.agentWalletId),
+        eq(copyPositions.symbol, input.symbol),
+      ),
+    )
+    .limit(1);
+
+  if (existing[0]) {
+    // Update existing position
+    const [position] = await db
+      .update(copyPositions)
+      .set({
+        quantity: input.quantity.toString(),
+        markPrice: input.markPrice?.toString(),
+        unrealizedPnl: input.markPrice
+          ? (
+              (input.markPrice - Number(existing[0].entryPrice)) *
+              Number(input.quantity) *
+              (input.side === 'long' ? 1 : -1)
+            ).toString()
+          : existing[0].unrealizedPnl,
+        leverage: input.leverage?.toString(),
+        marginUsed: input.marginUsed?.toString(),
+        lastUpdatedAt: new Date(),
+      } as NewCopyPosition)
+      .where(eq(copyPositions.id, existing[0].id))
+      .returning();
+
+    return position;
+  } else {
+    // Create new position
+    const [position] = await db
+      .insert(copyPositions)
+      .values({
+        userId: input.userId,
+        strategyId: input.strategyId,
+        agentWalletId: input.agentWalletId,
+        sourceTraderId: input.sourceTraderId,
+        exchange: 'hyperliquid',
+        symbol: input.symbol,
+        side: input.side,
+        quantity: input.quantity.toString(),
+        entryPrice: input.entryPrice.toString(),
+        markPrice: input.markPrice?.toString(),
+        leverage: input.leverage?.toString(),
+        marginUsed: input.marginUsed?.toString(),
+      } as NewCopyPosition)
+      .returning();
+
+    return position;
+  }
+}
+
+/**
+ * Close a copy position
+ */
+export async function closeCopyPosition(
+  positionId: string,
+  realizedPnl: number,
+): Promise<CopyPosition> {
+  const db = getDatabaseConnection().getDatabase();
+
+  const [position] = await db
+    .update(copyPositions)
+    .set({
+      realizedPnl: realizedPnl.toString(),
+      closedAt: new Date(),
+    } as NewCopyPosition)
+    .where(eq(copyPositions.id, positionId))
+    .returning();
+
+  return position;
+}

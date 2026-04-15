@@ -2,6 +2,7 @@ import { t } from '@hyperdash/contracts';
 import { z } from 'zod';
 import { analyticsRouter } from './analytics';
 import { copyRouter } from './copy';
+import { copyControlRouter } from './copy-control';
 import { marketRouter } from './market';
 import { systemRouter } from './system';
 import { tradersRouter } from './traders';
@@ -27,6 +28,9 @@ export const appRouter = t.router({
 
   // Copy Trading Endpoints
   copy: copyRouter,
+
+  // Copy Trading Control (Admin)
+  copyControl: copyControlRouter,
 
   // User Management Endpoints
   user: userRouter,
@@ -107,7 +111,10 @@ export const appRouter = t.router({
         };
       }
 
-      return { valid: true, expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString() };
+      return {
+        valid: true,
+        expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+      };
     }),
 });
 

@@ -31,18 +31,11 @@ WORKDIR /app
 # Copy binary from builder stage
 COPY --from=builder /app/main .
 
-# Copy configuration files
-COPY --chown=appuser:appuser ./infrastructure/docker/copy-engine/config ./config
-
 # Set permissions
 RUN chown appuser:appuser main
 
 USER appuser
 
 EXPOSE 8080
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD ./main healthcheck || exit 1
 
 CMD ["./main"]

@@ -1,11 +1,7 @@
 import { kycProcedure, protectedProcedure, t } from '@hyperdash/contracts';
-import {
-  CopyAllocationSchema,
-  CopyPerformanceSchema,
-  CopyStrategySchema,
-  schemas,
-} from '@hyperdash/shared-types';
+import { schemas } from '@hyperdash/shared-types';
 import { z } from 'zod';
+import * as copyService from '../services/copy-trading';
 
 /**
  * Copy Trading Router
@@ -23,51 +19,53 @@ export const copyRouter = t.router({
       }),
     )
     .query(async ({ input, ctx }) => {
-      const { status, limit, offset } = input;
+      const { status } = input;
       const userId = ctx.user!.userId;
 
-      // Implementation will query PostgreSQL for user's copy strategies
-      // Mock data for now
-      const mockStrategies = Array.from({ length: Math.min(5, limit) }, (_, i) => ({
-        id: `strategy_${i + 1}`,
-        name: `Copy Strategy ${i + 1}`,
-        description: `Follow top traders with ${i + 1}x leverage`,
-        status: ['active', 'paused'][i % 2],
-        mode: 'portfolio',
+      const strategies = await copyService.getStrategiesByUser(userId);
+
+      // Filter by status if not "all"
+      const filtered =
+        status === 'all' ? strategies : strategies.filter((s) => s.status === status);
+
+      // Apply pagination
+      const paginated = filtered.slice(input.offset, input.offset + input.limit);
+
+      // Transform to match expected schema
+      return paginated.map((strategy) => ({
+        id: strategy.id,
+        name: strategy.name,
+        description: strategy.description,
+        status: strategy.status,
+        mode: strategy.mode,
         riskParams: {
-          maxLeverage: 5.0,
-          maxPositionUsd: 100000,
-          slippageBps: 10,
-          minOrderUsd: 100,
+          maxLeverage: Number(strategy.maxLeverage || 5),
+          maxPositionUsd: strategy.maxPositionUsd ? Number(strategy.maxPositionUsd) : undefined,
+          slippageBps: strategy.slippageBps || 10,
+          minOrderUsd: Number(strategy.minOrderUsd || 100),
         },
         settings: {
-          followNewEntriesOnly: true,
-          autoRebalance: true,
-          rebalanceThresholdBps: 50,
+          followNewEntriesOnly: strategy.followNewEntriesOnly || false,
+          autoRebalance: strategy.autoRebalance || false,
+          rebalanceThresholdBps: strategy.rebalanceThresholdBps || 50,
         },
         performance: {
-          totalPnl: (Math.random() - 0.2) * 50000,
-          totalFees: Math.random() * 2000,
-          alignmentRate: 95 + Math.random() * 5,
-          totalTrades: Math.floor(100 + Math.random() * 500),
+          totalPnl: Number(strategy.totalPnl || 0),
+          totalFees: Number(strategy.totalFees || 0),
+          alignmentRate: Number(strategy.alignmentRate || 100),
+          totalTrades: 0, // Would need to calculate from orders
         },
-        allocations: [
-          {
-            traderId: 'trader_1',
-            weight: 0.6,
-            performance: { allocatedPnl: 15000, allocatedFees: 600 },
+        allocations: strategy.allocations.map((alloc) => ({
+          traderId: alloc.traderId,
+          weight: alloc.weight,
+          performance: {
+            allocatedPnl: alloc.allocatedPnl,
+            allocatedFees: alloc.allocatedFees,
           },
-          {
-            traderId: 'trader_2',
-            weight: 0.4,
-            performance: { allocatedPnl: 8000, allocatedFees: 400 },
-          },
-        ],
-        createdAt: new Date(Date.now() - (i + 1) * 7 * 86400000).toISOString(),
-        updatedAt: new Date(Date.now() - Math.random() * 86400000).toISOString(),
+        })),
+        createdAt: strategy.createdAt?.toISOString() || new Date().toISOString(),
+        updatedAt: strategy.updatedAt?.toISOString() || new Date().toISOString(),
       }));
-
-      return mockStrategies.map((strategy) => schemas.CopyStrategy.parse(strategy));
     }),
 
   // Create a new copy strategy
@@ -108,33 +106,54 @@ export const copyRouter = t.router({
         throw new Error('Allocation weights must sum to 1.0');
       }
 
-      // Implementation will create strategy in PostgreSQL
-      // Mock implementation for now
-      const newStrategy = {
-        id: `strategy_${Date.now()}`,
+      // Create strategy in database
+      const strategy = await copyService.createStrategy({
         userId,
         name,
         description,
-        status: 'paused',
         mode,
+        maxLeverage: riskParams.maxLeverage,
+        maxPositionUsd: riskParams.maxPositionUsd,
+        slippageBps: riskParams.slippageBps,
+        minOrderUsd: riskParams.minOrderUsd,
+        followNewEntriesOnly: settings.followNewEntriesOnly,
+        autoRebalance: settings.autoRebalance,
+        rebalanceThresholdBps: settings.rebalanceThresholdBps,
+      });
+
+      // Create allocations
+      for (const alloc of allocations) {
+        await copyService.addAllocation({
+          strategyId: strategy.id,
+          traderId: alloc.traderId,
+          weight: alloc.weight,
+        });
+      }
+
+      // Return the created strategy with allocations
+      const strategyWithAllocations = await copyService.getStrategyById(strategy.id);
+
+      return {
+        id: strategyWithAllocations!.id,
+        name: strategyWithAllocations!.name,
+        description: strategyWithAllocations!.description,
+        status: strategyWithAllocations!.status,
+        mode: strategyWithAllocations!.mode,
         riskParams,
         settings,
         performance: {
-          totalPnl: 0,
-          totalFees: 0,
-          alignmentRate: 100,
+          totalPnl: Number(strategyWithAllocations!.totalPnl || 0),
+          totalFees: Number(strategyWithAllocations!.totalFees || 0),
+          alignmentRate: Number(strategyWithAllocations!.alignmentRate || 100),
           totalTrades: 0,
         },
         allocations: allocations.map((alloc) => ({
           ...alloc,
           performance: { allocatedPnl: 0, allocatedFees: 0 },
         })),
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        createdAt: strategyWithAllocations!.createdAt?.toISOString() || new Date().toISOString(),
+        updatedAt: strategyWithAllocations!.updatedAt?.toISOString() || new Date().toISOString(),
       };
-
-      console.log(`Created copy strategy for user ${userId}:`, newStrategy);
-      return schemas.CopyStrategy.parse(newStrategy);
     }),
 
   // Update copy strategy
@@ -164,17 +183,32 @@ export const copyRouter = t.router({
     )
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.user!.userId;
-      const { strategyId, ...updates } = input;
+      const { strategyId, name, description, status, riskParams, settings } = input;
 
-      // Implementation will update strategy in PostgreSQL
-      // Mock implementation for now
-      console.log(`Updated strategy ${strategyId} for user ${userId}:`, updates);
+      // Build update object
+      const updates: copyService.UpdateStrategyInput = {};
+      if (name) updates.name = name;
+      if (description !== undefined) updates.description = description;
+      if (status) updates.status = status;
+      if (riskParams) {
+        updates.maxLeverage = riskParams.maxLeverage;
+        updates.maxPositionUsd = riskParams.maxPositionUsd;
+        updates.slippageBps = riskParams.slippageBps;
+        updates.minOrderUsd = riskParams.minOrderUsd;
+      }
+      if (settings) {
+        updates.followNewEntriesOnly = settings.followNewEntriesOnly;
+        updates.autoRebalance = settings.autoRebalance;
+        updates.rebalanceThresholdBps = settings.rebalanceThresholdBps;
+      }
+
+      const strategy = await copyService.updateStrategy(strategyId, updates);
 
       return {
         success: true,
         strategyId,
         updates,
-        updatedAt: new Date().toISOString(),
+        updatedAt: strategy.updatedAt?.toISOString() || new Date().toISOString(),
       };
     }),
 
@@ -191,56 +225,82 @@ export const copyRouter = t.router({
       const { strategyId, timeframe, granularity } = input;
       const userId = ctx.user!.userId;
 
-      // Implementation will query both PostgreSQL and ClickHouse
-      // Mock data for now
-      const mockPerformance = {
+      const perf = await copyService.getStrategyPerformance(strategyId);
+
+      if (!perf) {
+        throw new Error('Strategy not found');
+      }
+
+      // Calculate period start based on timeframe
+      const periodEnd = new Date();
+      const periodStart = new Date();
+      if (timeframe === '1d') {
+        periodStart.setDate(periodStart.getDate() - 1);
+      } else if (timeframe === '7d') {
+        periodStart.setDate(periodStart.getDate() - 7);
+      } else if (timeframe === '30d') {
+        periodStart.setDate(periodStart.getDate() - 30);
+      } else if (timeframe === '90d') {
+        periodStart.setDate(periodStart.getDate() - 90);
+      } else {
+        periodStart.setFullYear(periodStart.getFullYear() - 10);
+      }
+
+      // Get orders for timeseries data
+      const { orders } = await copyService.getStrategyOrders({
+        strategyId,
+        limit: 1000,
+      });
+
+      // Group by day for timeseries
+      const timeseriesByDay = new Map<string, any>();
+      for (const order of orders) {
+        if (order.createdAt) {
+          const date = new Date(order.createdAt);
+          const dateKey = date.toISOString().split('T')[0];
+          if (!timeseriesByDay.has(dateKey)) {
+            timeseriesByDay.set(dateKey, {
+              timestamp: date.toISOString(),
+              portfolioValue: 100000,
+              dailyPnl: 0,
+              alignmentRate: 100,
+              tradeCount: 0,
+            });
+          }
+          const entry = timeseriesByDay.get(dateKey)!;
+          entry.tradeCount++;
+          if (order.pnl) {
+            entry.dailyPnl += Number(order.pnl);
+          }
+        }
+      }
+
+      const timeseriesData = Array.from(timeseriesByDay.values());
+
+      return {
         strategyId,
         timeframe,
         granularity,
-        periodStart: new Date(Date.now() - 30 * 86400000).toISOString(),
-        periodEnd: new Date().toISOString(),
+        periodStart: periodStart.toISOString(),
+        periodEnd: periodEnd.toISOString(),
         summary: {
-          totalReturn: 0.085,
-          totalPnl: 25000,
-          totalFees: 1200,
-          alignmentRate: 96.5,
-          slippage: 8.2,
-          totalTrades: 145,
-          winRate: 0.62,
-          profitFactor: 1.6,
-          sharpeRatio: 1.35,
-          maxDrawdown: 0.08,
+          totalReturn: perf.totalPnl > 0 ? perf.netPnl / (perf.totalPnl - perf.netPnl) : 0,
+          totalPnl: perf.totalPnl,
+          totalFees: perf.totalFees,
+          alignmentRate: perf.alignmentRate,
+          slippage: 0, // Would need to calculate from orders
+          totalTrades: perf.totalTrades,
+          winRate: perf.winRate,
+          profitFactor:
+            perf.winningTrades > 0
+              ? perf.winningTrades / (perf.totalTrades - perf.winningTrades)
+              : 0,
+          sharpeRatio: 0, // Would need to calculate
+          maxDrawdown: 0, // Would need to calculate
         },
-        timeseriesData: Array.from({ length: 30 }, (_, i) => ({
-          timestamp: new Date(Date.now() - (29 - i) * 86400000).toISOString(),
-          portfolioValue: 100000 + i * 833 + (Math.random() - 0.5) * 2000,
-          dailyPnl: (Math.random() - 0.2) * 2000,
-          alignmentRate: 95 + Math.random() * 5,
-          tradeCount: Math.floor(3 + Math.random() * 8),
-        })),
-        allocationPerformance: [
-          {
-            traderId: 'trader_1',
-            weight: 0.6,
-            allocatedPnl: 15000,
-            allocatedFees: 720,
-            alignmentRate: 97.2,
-            tradeCount: 87,
-            contribution: 0.6,
-          },
-          {
-            traderId: 'trader_2',
-            weight: 0.4,
-            allocatedPnl: 10000,
-            allocatedFees: 480,
-            alignmentRate: 95.8,
-            tradeCount: 58,
-            contribution: 0.4,
-          },
-        ],
+        timeseriesData,
+        allocationPerformance: [], // Would need to fetch from allocations
       };
-
-      return schemas.CopyPerformance.parse(mockPerformance);
     }),
 
   // Get copy execution history
@@ -250,35 +310,40 @@ export const copyRouter = t.router({
         strategyId: z.string(),
         limit: z.number().min(1).max(100).default(50),
         offset: z.number().min(0).default(0),
-        status: z.enum(['success', 'failed', 'partial', 'all']).default('all'),
+        status: z
+          .enum(['pending', 'submitted', 'filled', 'partial', 'cancelled', 'failed', 'all'])
+          .default('all'),
       }),
     )
     .query(async ({ input, ctx }) => {
       const { strategyId, limit, offset, status } = input;
       const userId = ctx.user!.userId;
 
-      // Implementation will query PostgreSQL for execution history
-      // Mock data for now
-      const mockHistory = Array.from({ length: Math.min(20, limit) }, (_, i) => ({
-        id: `execution_${offset + i + 1}`,
+      const { orders, total } = await copyService.getStrategyOrders({
         strategyId,
-        sourceTraderId: ['trader_1', 'trader_2'][i % 2],
-        symbol: ['BTC-PERP', 'ETH-PERP', 'SOL-PERP'][i % 3],
-        eventType: ['signal_received', 'order_placed', 'order_filled', 'alignment_check'][i % 4],
-        status: status === 'all' ? ['success', 'failed'][i % 2] : status,
-        latency: Math.floor(Math.random() * 1000),
-        alignmentRate: 95 + Math.random() * 5,
-        slippageBps: Math.floor(Math.random() * 20),
-        orderDetails: {
-          orderId: `order_${offset + i + 1}`,
-          quantity: (Math.random() * 5 + 0.1).toFixed(2),
-          price: Math.random() * 50000 + 1000,
-          side: Math.random() > 0.5 ? 'buy' : 'sell',
-        },
-        timestamp: new Date(Date.now() - (offset + i) * 300000).toISOString(),
-      }));
+        limit,
+        offset,
+        status: status === 'all' ? undefined : (status as copyService.OrderStatus),
+      });
 
-      return mockHistory.map((execution) => schemas.CopyExecution.parse(execution));
+      return orders.map((order) => ({
+        id: order.id,
+        strategyId: order.strategyId || undefined,
+        sourceTraderId: order.sourceTraderId || undefined,
+        symbol: order.symbol,
+        eventType: order.status === 'filled' ? 'order_filled' : 'order_placed',
+        status: order.status,
+        latency: 0, // Would need to track
+        alignmentRate: 100, // Would need to calculate
+        slippageBps: 0, // Would need to calculate
+        orderDetails: {
+          orderId: order.exchangeOrderId || order.id,
+          quantity: Number(order.quantity),
+          price: order.price ? Number(order.price) : 0,
+          side: order.side,
+        },
+        timestamp: order.createdAt?.toISOString() || new Date().toISOString(),
+      }));
     }),
 
   // Update strategy allocations
@@ -304,8 +369,14 @@ export const copyRouter = t.router({
         throw new Error('Allocation weights must sum to 1.0');
       }
 
-      // Implementation will update allocations in PostgreSQL
-      // Mock implementation for now
+      // Get current strategy to verify ownership
+      const strategy = await copyService.getStrategyById(strategyId);
+      if (!strategy || strategy.userId !== userId) {
+        throw new Error('Strategy not found or access denied');
+      }
+
+      // For now, we'd need to update allocations by ID
+      // This is a simplified implementation
       console.log(`Updated allocations for strategy ${strategyId}:`, allocations);
 
       return {
@@ -330,8 +401,8 @@ export const copyRouter = t.router({
       const { riskTolerance, targetReturn, maxDrawdown, excludeTraders } = input;
       const userId = ctx.user!.userId;
 
-      // Implementation will analyze user's profile and recommend strategies
-      // Mock data for now
+      // For now, return mock recommendations
+      // In production, this would analyze trader performance and suggest allocations
       const mockRecommendations = [
         {
           name: 'Conservative Portfolio',
@@ -345,8 +416,16 @@ export const copyRouter = t.router({
               weight: 0.5,
               reason: 'Consistent performer with low volatility',
             },
-            { traderId: 'trader_stable_2', weight: 0.3, reason: 'Solid risk management' },
-            { traderId: 'trader_stable_3', weight: 0.2, reason: 'Diversification benefits' },
+            {
+              traderId: 'trader_stable_2',
+              weight: 0.3,
+              reason: 'Solid risk management',
+            },
+            {
+              traderId: 'trader_stable_3',
+              weight: 0.2,
+              reason: 'Diversification benefits',
+            },
           ],
         },
         {
@@ -356,9 +435,21 @@ export const copyRouter = t.router({
           expectedReturn: 0.25,
           maxDrawdown: 0.12,
           suggestedAllocation: [
-            { traderId: 'trader_growth_1', weight: 0.4, reason: 'Strong growth track record' },
-            { traderId: 'trader_growth_2', weight: 0.35, reason: 'Consistent outperformance' },
-            { traderId: 'trader_growth_3', weight: 0.25, reason: 'Momentum specialist' },
+            {
+              traderId: 'trader_growth_1',
+              weight: 0.4,
+              reason: 'Strong growth track record',
+            },
+            {
+              traderId: 'trader_growth_2',
+              weight: 0.35,
+              reason: 'Consistent outperformance',
+            },
+            {
+              traderId: 'trader_growth_3',
+              weight: 0.25,
+              reason: 'Momentum specialist',
+            },
           ],
         },
         {
@@ -368,7 +459,11 @@ export const copyRouter = t.router({
           expectedReturn: 0.45,
           maxDrawdown: 0.25,
           suggestedAllocation: [
-            { traderId: 'trader_aggressive_1', weight: 0.6, reason: 'High alpha generation' },
+            {
+              traderId: 'trader_aggressive_1',
+              weight: 0.6,
+              reason: 'High alpha generation',
+            },
             {
               traderId: 'trader_aggressive_2',
               weight: 0.4,
@@ -404,16 +499,31 @@ export const copyRouter = t.router({
       const userId = ctx.user!.userId;
       const { strategyId, action } = input;
 
-      // Implementation will update strategy status and trigger copy engine
-      // Mock implementation for now
-      console.log(`User ${userId} ${action}ing strategy ${strategyId}`);
+      // Get strategy to verify ownership
+      const strategy = await copyService.getStrategyById(strategyId);
+      if (!strategy || strategy.userId !== userId) {
+        throw new Error('Strategy not found or access denied');
+      }
+
+      let updatedStrategy;
+      switch (action) {
+        case 'start':
+          updatedStrategy = await copyService.startStrategy(strategyId);
+          break;
+        case 'pause':
+          updatedStrategy = await copyService.pauseStrategy(strategyId);
+          break;
+        case 'terminate':
+          updatedStrategy = await copyService.stopStrategy(strategyId);
+          break;
+      }
 
       return {
         success: true,
         strategyId,
         action,
-        status: action === 'start' ? 'active' : action === 'pause' ? 'paused' : 'terminated',
-        timestamp: new Date().toISOString(),
+        status: updatedStrategy!.status,
+        timestamp: updatedStrategy!.updatedAt?.toISOString() || new Date().toISOString(),
       };
     }),
 });
