@@ -1,308 +1,400 @@
 /**
- * Hyperliquid API Client
+ * Hyperliquid Info API client.
  *
- * This module provides functions to interact with the Hyperliquid API
- * for fetching market data, trader information, and trading statistics.
+ * Every Info query is `POST {origin}/info` with a JSON body `{ "type": "...",
+ * ...args }`. We wrap fetch with a per-request timeout, exponential backoff on
+ * 5xx / 429 / transport errors, and basic address validation.
  *
- * API Documentation: https://hyperliquid.xyz/info
+ * Docs: https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api/info-endpoint
  */
 
-interface HyperliquidTrade {
+// ---------------------------------------------------------------------------
+// Response types — shaped to match the real API, not our earlier guesses.
+// ---------------------------------------------------------------------------
+
+/**
+ * A single user fill. `closedPnl` is non-zero only on fills that close or
+ * reduce a position; opens always report "0.0". `fee` is the taker fee in USD.
+ */
+export interface HyperliquidFill {
   coin: string;
-  side: 'A' | 'B'; // A = Buy (Long), B = Sell (Short)
-  px: string; // Price
-  sz: string; // Size
-  time: number; // Timestamp
-  start: string; // Start position
+  /** `A` = taker matched an ask (taker bought); `B` = taker matched a bid (taker sold). */
+  side: 'A' | 'B';
+  /** Fill price. */
+  px: string;
+  /** Absolute fill size. */
+  sz: string;
+  /** Epoch milliseconds. */
+  time: number;
+  /** Position size before this fill (signed). */
+  startPosition: string;
+  /** Human-readable direction: "Open Long" | "Close Long" | "Open Short" | "Close Short" | "Buy" | "Sell". */
+  dir: string;
+  closedPnl: string;
+  fee: string;
   hash: string;
-  positionPosition: string;
+  oid: number;
+  tid: number;
+  crossed: boolean;
 }
 
-interface HyperliquidUser {
-  assetPosition: {
-    [coin: string]: {
-      positionValue: string;
-      marginUsed: string;
-      leverage: {
-        value: string;
-        rawUsd: string;
-      };
-      liquidationPx: string;
-      returnOnEquity: string;
-      unrealizedPnl: string;
-      longAccount: {
-        leverage: {
-          value: string;
-          rawUsd: string;
-        };
-        positionValue: string;
-        marginUsed: string;
-        size: string;
-      };
-      shortAccount: {
-        leverage: {
-          value: string;
-          rawUsd: string;
-        };
-        positionValue: string;
-        marginUsed: string;
-        size: string;
-      };
-    };
+export interface HyperliquidAssetPosition {
+  type: 'oneWay' | string;
+  position: {
+    coin: string;
+    /** Signed position size: positive = long, negative = short. */
+    szi: string;
+    entryPx: string;
+    positionValue: string;
+    unrealizedPnl: string;
+    marginUsed: string;
+    liquidationPx: string | null;
+    returnOnEquity: string;
+    leverage: { type: 'cross' | 'isolated'; value: number };
   };
-  crossMarginSummary: {
-    accountValue: string;
-    totalMarginUsed: string;
-    totalNposPos: string;
-    totalRawUsd: string;
-    totalReturnOnEquity: string;
-  };
-  marginSummary: {
-    [coin: string]: {
-      accountValue: string;
-      totalMarginUsed: string;
-      totalNposPos: string;
-      totalRawUsd: string;
-      totalReturnOnEquity: string;
-    };
-  };
+}
+
+export interface HyperliquidMarginSummary {
+  accountValue: string;
+  totalNtlPos: string;
+  totalRawUsd: string;
+  totalMarginUsed: string;
+}
+
+export interface HyperliquidClearinghouseState {
+  assetPositions: HyperliquidAssetPosition[];
+  crossMarginSummary: HyperliquidMarginSummary;
+  marginSummary: HyperliquidMarginSummary;
   withdrawable: string;
 }
 
-interface HyperliquidAllMids {
-  [coin: string]: string; // Coin -> Price mapping
-}
-
-interface HyperliquidMeta {
-  [symbol: string]: {
+export interface HyperliquidMeta {
+  universe: Array<{
+    name: string;
+    szDecimals: number;
     maxLeverage: number;
-    asset: string;
-    type: 'perpetual' | 'perp';
-  };
+    onlyIsolated?: boolean;
+    isDelisted?: boolean;
+  }>;
 }
 
-const HYPERLIQUID_API_BASE = 'https://api.hyperliquid.xyz';
+export type HyperliquidAllMids = Record<string, string>;
 
-/**
- * Fetch recent trades for a specific user
- */
-export async function getUserTrades(address: string): Promise<HyperliquidTrade[]> {
-  const response = await fetch(`${HYPERLIQUID_API_BASE}/info?user=${address}`);
+// ---------------------------------------------------------------------------
+// HTTP layer.
+// ---------------------------------------------------------------------------
 
-  if (!response.ok) {
-    throw new Error(`Failed to fetch user trades: ${response.statusText}`);
+/** Thrown for any non-2xx response or transport failure. */
+export class HyperliquidApiError extends Error {
+  constructor(
+    message: string,
+    public readonly status?: number,
+    public readonly body?: string,
+  ) {
+    super(message);
+    this.name = 'HyperliquidApiError';
   }
-
-  const data = await response.json();
-
-  if (!data || data.length === 0) {
-    return [];
-  }
-
-  return data;
 }
 
-/**
- * Fetch user state including positions and margin
- */
-export async function getUserState(address: string): Promise<HyperliquidUser> {
-  const response = await fetch(`${HYPERLIQUID_API_BASE}/info?user=${address}&userState=info`);
+const DEFAULT_TIMEOUT_MS = 10_000;
+const MAX_RETRIES = 3;
 
-  if (!response.ok) {
-    throw new Error(`Failed to fetch user state: ${response.statusText}`);
-  }
-
-  const data = await response.json();
-
-  if (!data || data.length === 0) {
-    throw new Error('No user state data found');
-  }
-
-  return data[0];
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /**
- * Fetch all mid prices (market data)
+ * Resolve the Info endpoint. `HYPERLIQUID_API_URL` may point to the full
+ * `/info` URL (as in our .env.example) or just the origin; accept both.
  */
+function resolveInfoUrl(): string {
+  const raw = process.env.HYPERLIQUID_API_URL ?? 'https://api.hyperliquid.xyz';
+  return raw.endsWith('/info') ? raw : `${raw.replace(/\/$/, '')}/info`;
+}
+
+/**
+ * Make one POST /info call with timeout + retries on 5xx/429/transport errors.
+ * 4xx (except 429) fail fast — those are caller mistakes and won't fix with time.
+ */
+async function infoRequest<T>(body: Record<string, unknown>): Promise<T> {
+  const url = resolveInfoUrl();
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'User-Agent': 'hyperdash-api-gateway/1.0',
+        },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+
+      if (res.ok) {
+        return (await res.json()) as T;
+      }
+
+      // Non-retryable client error — surface immediately.
+      if (res.status !== 429 && res.status < 500) {
+        const text = await res.text().catch(() => '');
+        throw new HyperliquidApiError(
+          `Hyperliquid info(${String(body.type)}) failed: ${res.status} ${res.statusText}`,
+          res.status,
+          text,
+        );
+      }
+
+      // Retryable (5xx or 429): loop after backoff.
+      lastError = new HyperliquidApiError(
+        `Hyperliquid info(${String(body.type)}) transient: ${res.status} ${res.statusText}`,
+        res.status,
+      );
+    } catch (err) {
+      clearTimeout(timeout);
+      // A non-retryable HyperliquidApiError we just threw — bubble up.
+      if (err instanceof HyperliquidApiError && err.status && err.status !== 429 && err.status < 500) {
+        throw err;
+      }
+      lastError = err;
+    }
+
+    if (attempt < MAX_RETRIES) {
+      // Exponential backoff with jitter: ~250ms, ~500ms, ~1000ms.
+      const base = 250 * 2 ** attempt;
+      const jitter = Math.floor(Math.random() * 100) - 50;
+      await sleep(base + jitter);
+    }
+  }
+
+  if (lastError instanceof Error) throw lastError;
+  throw new HyperliquidApiError('Hyperliquid info request failed after retries');
+}
+
+// ---------------------------------------------------------------------------
+// Public API wrappers.
+// ---------------------------------------------------------------------------
+
+const ADDRESS_REGEX = /^0x[0-9a-fA-F]{40}$/;
+
+function assertAddress(address: string): void {
+  if (!ADDRESS_REGEX.test(address)) {
+    throw new HyperliquidApiError(`Invalid Hyperliquid address: ${address}`);
+  }
+}
+
+/** Recent fills for a user. Returns `[]` if the user has never traded. */
+export async function getUserFills(address: string): Promise<HyperliquidFill[]> {
+  assertAddress(address);
+  const data = await infoRequest<HyperliquidFill[] | null>({ type: 'userFills', user: address });
+  return Array.isArray(data) ? data : [];
+}
+
+/** Perp account state: open positions, margin summary, withdrawable balance. */
+export async function getClearinghouseState(
+  address: string,
+): Promise<HyperliquidClearinghouseState> {
+  assertAddress(address);
+  return infoRequest<HyperliquidClearinghouseState>({ type: 'clearinghouseState', user: address });
+}
+
+/** All mid-market prices, as a flat `{ COIN: priceString }` map. */
 export async function getAllMids(): Promise<HyperliquidAllMids> {
-  const response = await fetch(`${HYPERLIQUID_API_BASE}/info`);
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch market data: ${response.statusText}`);
-  }
-
-  const data = await response.json();
-  return data[0]?.allMids ?? {};
+  return infoRequest<HyperliquidAllMids>({ type: 'allMids' });
 }
 
-/**
- * Fetch meta information for perpetuals
- */
+/** Perp metadata including each coin's szDecimals and maxLeverage. */
 export async function getMeta(): Promise<HyperliquidMeta> {
-  const response = await fetch(`${HYPERLIQUID_API_BASE}/meta`);
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch meta: ${response.statusText}`);
-  }
-
-  const data = await response.json();
-  return data[0] ?? {};
+  return infoRequest<HyperliquidMeta>({ type: 'meta' });
 }
 
+// ---------------------------------------------------------------------------
+// Domain logic — stats derivation and DB row mapping.
+// ---------------------------------------------------------------------------
+
+export interface TraderStatsSummary {
+  address: string;
+  equity: number;
+  pnl1d: number;
+  pnl7d: number;
+  pnl30d: number;
+  pnl90d: number;
+  pnlAllTime: number;
+  /** 0-100. */
+  winRate: number;
+  /** Count of completed round-trips (i.e. close fills). */
+  totalTrades: number;
+  winningTrades: number;
+  losingTrades: number;
+  /** Not computable from fills alone; requires an equity timeseries. */
+  sharpeRatio: number;
+  /** Same as sharpeRatio — requires equity timeseries. */
+  maxDrawdown: number;
+  /** Traded within the last 24h. */
+  isActive: boolean;
+  lastTradeAt: string | null;
+}
+
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
 /**
- * Calculate trader statistics from trades
+ * Derive trader statistics from fills + current clearinghouse state.
+ *
+ * Only CLOSE fills carry realized PnL; OPEN fills always report
+ * `closedPnl = "0"`. We therefore derive win/loss counts from close fills
+ * (a "trade" = one completed round-trip) and aggregate `closedPnl - fee` by
+ * time window.
+ *
+ * Sharpe and maxDrawdown would require an equity curve we don't have here
+ * (Hyperliquid only exposes point-in-time state, not history). They're left
+ * at 0 with a TODO; a future enhancement can compute them from ingested
+ * portfolio snapshots.
  */
 export function calculateTraderStats(
-  trades: HyperliquidTrade[],
-  userState: HyperliquidUser,
+  fills: HyperliquidFill[],
+  state: HyperliquidClearinghouseState | null,
   address: string,
-) {
-  if (trades.length === 0) {
-    return null;
-  }
+): TraderStatsSummary | null {
+  if (fills.length === 0) return null;
 
-  // Sort trades by time (newest first)
-  const sortedTrades = [...trades].sort((a, b) => b.time - a.time);
-
-  // Calculate PnL for different time periods
   const now = Date.now();
-  const periods = {
-    d1: now - 24 * 60 * 60 * 1000,
-    d7: now - 7 * 24 * 60 * 60 * 1000,
-    d30: now - 30 * 24 * 60 * 60 * 1000,
-    d90: now - 90 * 24 * 60 * 60 * 1000,
+  const windowStart = {
+    d1: now - 1 * MS_PER_DAY,
+    d7: now - 7 * MS_PER_DAY,
+    d30: now - 30 * MS_PER_DAY,
+    d90: now - 90 * MS_PER_DAY,
   };
 
-  const pnlByPeriod = {
-    d1: 0,
-    d7: 0,
-    d30: 0,
-    d90: 0,
-    all: 0,
-  };
-
+  const pnl = { d1: 0, d7: 0, d30: 0, d90: 0, all: 0 };
   let winningTrades = 0;
-  const totalTrades = trades.length;
+  let losingTrades = 0;
+  let lastTradeTime = 0;
 
-  for (const trade of sortedTrades) {
-    const side = trade.side === 'A' ? 1 : -1; // A = Long (1), B = Short (-1)
-    const size = parseFloat(trade.sz);
-    const price = parseFloat(trade.px);
-    const pnl = side * size * price; // Simplified PnL calculation
+  for (const fill of fills) {
+    if (fill.time > lastTradeTime) lastTradeTime = fill.time;
 
-    // Aggregate by time period
-    if (trade.time >= periods.d1) pnlByPeriod.d1 += pnl;
-    if (trade.time >= periods.d7) pnlByPeriod.d7 += pnl;
-    if (trade.time >= periods.d30) pnlByPeriod.d30 += pnl;
-    if (trade.time >= periods.d90) pnlByPeriod.d90 += pnl;
-    pnlByPeriod.all += pnl;
+    // PnL is only meaningful on close fills; skip opens.
+    if (!fill.dir.startsWith('Close')) continue;
 
-    if (pnl > 0) winningTrades++;
+    const realized = parseFloat(fill.closedPnl ?? '0') - parseFloat(fill.fee ?? '0');
+    pnl.all += realized;
+    if (fill.time >= windowStart.d1) pnl.d1 += realized;
+    if (fill.time >= windowStart.d7) pnl.d7 += realized;
+    if (fill.time >= windowStart.d30) pnl.d30 += realized;
+    if (fill.time >= windowStart.d90) pnl.d90 += realized;
+
+    if (realized > 0) winningTrades++;
+    else if (realized < 0) losingTrades++;
   }
 
-  const winRate = totalTrades > 0 ? (winningTrades / totalTrades) * 100 : 0;
-
-  // Calculate equity and margin from user state
-  const accountValue = userState.crossMarginSummary
-    ? parseFloat(userState.crossMarginSummary.accountValue)
-    : 0;
-
-  // Calculate Sharpe ratio (simplified - using mean/std of returns would be more accurate)
-  const sharpeRatio = accountValue > 0 ? (pnlByPeriod.d30 / accountValue) * Math.sqrt(365) : 0;
-
-  // Calculate max drawdown (simplified - would need more detailed tracking)
-  const maxDrawdown = accountValue > 0 ? Math.max(0, (-pnlByPeriod.d30 / accountValue) * 100) : 0;
-
-  // Determine if active (traded in last 24 hours)
-  const isActive = sortedTrades[0] && sortedTrades[0].time >= periods.d1;
+  const totalClosedTrades = winningTrades + losingTrades;
+  const winRate = totalClosedTrades > 0 ? (winningTrades / totalClosedTrades) * 100 : 0;
+  const equity = state ? parseFloat(state.crossMarginSummary?.accountValue ?? '0') : 0;
 
   return {
     address,
-    equity: accountValue,
-    pnl1d: pnlByPeriod.d1,
-    pnl7d: pnlByPeriod.d7,
-    pnl30d: pnlByPeriod.d30,
-    pnl90d: pnlByPeriod.d90,
-    pnlAllTime: pnlByPeriod.all,
+    equity,
+    pnl1d: pnl.d1,
+    pnl7d: pnl.d7,
+    pnl30d: pnl.d30,
+    pnl90d: pnl.d90,
+    pnlAllTime: pnl.all,
     winRate,
-    totalTrades,
+    totalTrades: totalClosedTrades,
     winningTrades,
-    losingTrades: totalTrades - winningTrades,
-    sharpeRatio,
-    maxDrawdown,
-    isActive,
-    lastTradeAt: sortedTrades[0] ? new Date(sortedTrades[0].time).toISOString() : null,
+    losingTrades,
+    sharpeRatio: 0, // TODO: requires equity timeseries
+    maxDrawdown: 0, // TODO: requires equity timeseries
+    isActive: lastTradeTime >= windowStart.d1,
+    lastTradeAt: lastTradeTime > 0 ? new Date(lastTradeTime).toISOString() : null,
   };
 }
 
 /**
- * Format a list of trades for database insertion
+ * One row for the `trader_trades` table (see
+ * packages/database/postgres/src/schema.ts). Each row represents a single
+ * fill/action, not a round-trip position.
  */
-export function formatTradesForDB(trades: HyperliquidTrade[], traderAddress: string) {
-  return trades.map((trade) => ({
-    traderAddress,
-    symbol: trade.coin,
-    side: trade.side === 'A' ? 'LONG' : 'SHORT',
-    size: parseFloat(trade.sz),
-    entryPrice: parseFloat(trade.px),
-    exitPrice: parseFloat(trade.px), // Simplified - would need closing trade
-    quantity: parseFloat(trade.sz),
-    leverage: 1, // Would need to fetch from user state
-    realizedPnl: 0, // Would need to calculate from position close
-    isOpen: false,
-    executedAt: new Date(trade.time).toISOString(),
-    hash: trade.hash,
-  }));
+export interface TraderTradeRow {
+  traderId: string;
+  traderAddress: string;
+  symbol: string;
+  side: 'long' | 'short';
+  action: 'open' | 'close';
+  size: string;
+  entryPrice: string | null;
+  exitPrice: string | null;
+  pnl: string;
+  feeUsd: string;
+  openedAt: Date;
+  closedAt: Date | null;
+  exchangeTradeId: string;
+  exchange: 'hyperliquid';
 }
 
 /**
- * Fetch and process trader data from Hyperliquid API
+ * Map a Hyperliquid fill to a `trader_trades` row.
+ *
+ * The `dir` field is authoritative for position direction: "Open Long",
+ * "Close Long", "Open Short", "Close Short". Spot/non-perp fills may show
+ * "Buy"/"Sell" without Open/Close — those are treated as opens of the
+ * implied direction (buy = long, sell = short).
  */
-export async function fetchTraderData(address: string) {
-  try {
-    const [trades, userState] = await Promise.all([
-      getUserTrades(address),
-      getUserState(address).catch(() => null), // User state might fail for new addresses
-    ]);
+export function fillToTraderTradeRow(
+  fill: HyperliquidFill,
+  traderId: string,
+  traderAddress: string,
+): TraderTradeRow {
+  const isClose = fill.dir.startsWith('Close');
+  // `Close Long`/`Open Long`/`Buy` → long; `Close Short`/`Open Short`/`Sell` → short.
+  const side: 'long' | 'short' =
+    fill.dir.includes('Long') || fill.dir === 'Buy' ? 'long' : 'short';
+  const ts = new Date(fill.time);
 
-    if (!userState || !userState.crossMarginSummary) {
-      // If no user state, create minimal stats from trades
-      if (trades.length === 0) {
-        return null;
-      }
+  return {
+    traderId,
+    traderAddress,
+    symbol: fill.coin,
+    side,
+    action: isClose ? 'close' : 'open',
+    size: fill.sz,
+    entryPrice: isClose ? null : fill.px,
+    exitPrice: isClose ? fill.px : null,
+    pnl: fill.closedPnl ?? '0',
+    feeUsd: fill.fee ?? '0',
+    openedAt: ts,
+    closedAt: isClose ? ts : null,
+    exchangeTradeId: fill.hash ?? String(fill.tid),
+    exchange: 'hyperliquid',
+  };
+}
 
-      const minimalStats = {
-        address,
-        equity: 0,
-        pnl1d: 0,
-        pnl7d: 0,
-        pnl30d: 0,
-        pnl90d: 0,
-        pnlAllTime: 0,
-        winRate: 0,
-        totalTrades: trades.length,
-        winningTrades: 0,
-        losingTrades: trades.length,
-        sharpeRatio: 0,
-        maxDrawdown: 0,
-        isActive: false,
-        lastTradeAt: new Date(trades[0].time).toISOString(),
-      };
+/**
+ * Fetch everything needed to ingest one trader.
+ *
+ * Returns `null` only when the trader has no fills. API/network/parse errors
+ * bubble up as `HyperliquidApiError` so the ingestion job can decide whether
+ * to retry (transient) or mark the address as permanently failing.
+ */
+export async function fetchTraderData(
+  address: string,
+): Promise<{ stats: TraderStatsSummary; fills: HyperliquidFill[] } | null> {
+  const [fills, state] = await Promise.all([
+    getUserFills(address),
+    // A brand-new or non-perp address may 404 on clearinghouseState; that's
+    // recoverable — we can still return fill-based stats with equity = 0.
+    getClearinghouseState(address).catch((err) => {
+      if (err instanceof HyperliquidApiError && err.status === 404) return null;
+      throw err;
+    }),
+  ]);
 
-      return {
-        stats: minimalStats,
-        trades: formatTradesForDB(trades, address),
-      };
-    }
+  const stats = calculateTraderStats(fills, state, address);
+  if (!stats) return null;
 
-    const stats = calculateTraderStats(trades, userState, address);
-
-    return {
-      stats,
-      trades: formatTradesForDB(trades, address),
-    };
-  } catch (error) {
-    console.error(`Failed to fetch trader data for ${address}:`, error);
-    return null;
-  }
+  return { stats, fills };
 }

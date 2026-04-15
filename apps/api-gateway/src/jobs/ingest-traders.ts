@@ -10,8 +10,8 @@
  */
 
 import { createPostgresConnection, traderStats, traderTrades } from '@hyperdash/database';
-import { eq } from 'drizzle-orm';
-import { fetchTraderData } from '../services/hyperliquid';
+import { and, eq } from 'drizzle-orm';
+import { fetchTraderData, fillToTraderTradeRow } from '../services/hyperliquid';
 
 // Known whale/active trader addresses on Hyperliquid
 // These can be expanded over time or fetched from external sources
@@ -57,7 +57,7 @@ async function ingestTraderAddress(
         };
       }
 
-      const { stats, trades } = traderData;
+      const { stats, fills } = traderData;
 
       if (!stats) {
         return { success: false, error: 'No stats available', updated: false };
@@ -111,33 +111,25 @@ async function ingestTraderAddress(
         } as any);
       }
 
-      // Insert new trades (avoid duplicates by hash)
-      if (trades.length > 0) {
-        for (const trade of trades) {
-          // Check if trade already exists
+      // Insert new trades, deduplicating on (traderId, exchangeTradeId).
+      // Each fill becomes one trader_trades row via fillToTraderTradeRow.
+      if (fills.length > 0) {
+        for (const fill of fills) {
+          const row = fillToTraderTradeRow(fill, traderId, address);
+
           const existingTrades = await db
-            .select()
+            .select({ id: traderTrades.id })
             .from(traderTrades)
             .where(
-              eq(traderTrades.metadata, (trade as any).hash ? { hash: (trade as any).hash } : {}),
+              and(
+                eq(traderTrades.traderId, traderId),
+                eq(traderTrades.exchangeTradeId, row.exchangeTradeId),
+              ),
             )
             .limit(1);
 
           if (existingTrades.length === 0) {
-            await db.insert(traderTrades).values({
-              traderId,
-              traderAddress: address,
-              symbol: trade.symbol,
-              side: trade.side,
-              action: 'open', // Default action
-              size: trade.size?.toString() || '0',
-              entryPrice: trade.entryPrice?.toString() || '0',
-              exitPrice: trade.exitPrice?.toString() || null,
-              pnl: trade.realizedPnl?.toString() || '0',
-              openedAt: trade.executedAt ? new Date(trade.executedAt) : new Date(),
-              closedAt: null,
-              metadata: { hash: (trade as any).hash },
-            } as any);
+            await db.insert(traderTrades).values(row as any);
           }
         }
       }
