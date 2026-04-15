@@ -659,21 +659,49 @@ export async function updateOrderStatus(
 }
 
 /**
- * Create or update a copy position
+ * Input for {@link upsertCopyPosition}. Represents a _snapshot_ of the
+ * position's current state (as returned by the exchange's clearinghouse API),
+ * not a per-fill delta.
+ *
+ * The identity tuple `(userId, strategyId, agentWalletId, symbol, side)`
+ * locates the open row (with `closedAt IS NULL`); any of those fields changing
+ * means a different position and will create a new row instead of mutating the
+ * old one. Scale-ins/outs are expressed as new values of `quantity` and
+ * `entryPrice` — Hyperliquid (and most exchanges) already maintain a
+ * volume-weighted entry for us, so we just pass it through.
  */
-export async function upsertCopyPosition(input: {
+export interface UpsertCopyPositionInput {
   userId: string;
   strategyId: string;
   agentWalletId: string;
+  /** Persisted on INSERT only; ignored on UPDATE (the source doesn't change). */
   sourceTraderId: string;
   symbol: string;
   side: 'long' | 'short';
+  /** Absolute position size after this snapshot. */
   quantity: number;
+  /** Volume-weighted entry price from the exchange. */
   entryPrice: number;
   markPrice?: number;
+  /**
+   * Realized-adjacent unrealized PnL from the exchange. When omitted, we fall
+   * back to computing `(mark - entry) * qty * sideSign` using the snapshot's
+   * own entryPrice — never the stale DB value.
+   */
+  unrealizedPnl?: number;
   leverage?: number;
   marginUsed?: number;
-}): Promise<CopyPosition> {
+}
+
+/**
+ * Create-or-update an open copy position from an exchange snapshot.
+ *
+ * On UPDATE, every state field is refreshed from the snapshot (including
+ * `entryPrice`, which changes when the exchange recomputes its weighted
+ * average on a scale-in). `sourceTraderId`, `side`, and the identity tuple
+ * stay immutable — a side flip or agent/symbol change creates a new row.
+ */
+export async function upsertCopyPosition(input: UpsertCopyPositionInput): Promise<CopyPosition> {
   const db = getDatabaseConnection().getDatabase();
 
   // Find the currently-open position matching the full identity tuple. Including
@@ -696,20 +724,26 @@ export async function upsertCopyPosition(input: {
     )
     .limit(1);
 
+  // Unrealized PnL: prefer the exchange-provided value. Fall back to computing
+  // it from *this snapshot's* entry price — never the stale DB value, which is
+  // what the prior implementation did (it held the original entry across
+  // scale-ins and silently produced wrong PnL after any add-to-position).
+  const sideSign = input.side === 'long' ? 1 : -1;
+  const unrealizedPnl =
+    input.unrealizedPnl !== undefined
+      ? input.unrealizedPnl
+      : input.markPrice !== undefined
+        ? (input.markPrice - input.entryPrice) * input.quantity * sideSign
+        : undefined;
+
   if (existing[0]) {
-    // Update existing position
     const [position] = await db
       .update(copyPositions)
       .set({
         quantity: input.quantity.toString(),
+        entryPrice: input.entryPrice.toString(),
         markPrice: input.markPrice?.toString(),
-        unrealizedPnl: input.markPrice
-          ? (
-              (input.markPrice - Number(existing[0].entryPrice)) *
-              Number(input.quantity) *
-              (input.side === 'long' ? 1 : -1)
-            ).toString()
-          : existing[0].unrealizedPnl,
+        unrealizedPnl: unrealizedPnl !== undefined ? unrealizedPnl.toString() : existing[0].unrealizedPnl,
         leverage: input.leverage?.toString(),
         marginUsed: input.marginUsed?.toString(),
         lastUpdatedAt: new Date(),
@@ -718,28 +752,28 @@ export async function upsertCopyPosition(input: {
       .returning();
 
     return position;
-  } else {
-    // Create new position
-    const [position] = await db
-      .insert(copyPositions)
-      .values({
-        userId: input.userId,
-        strategyId: input.strategyId,
-        agentWalletId: input.agentWalletId,
-        sourceTraderId: input.sourceTraderId,
-        exchange: 'hyperliquid',
-        symbol: input.symbol,
-        side: input.side,
-        quantity: input.quantity.toString(),
-        entryPrice: input.entryPrice.toString(),
-        markPrice: input.markPrice?.toString(),
-        leverage: input.leverage?.toString(),
-        marginUsed: input.marginUsed?.toString(),
-      } as NewCopyPosition)
-      .returning();
-
-    return position;
   }
+
+  const [position] = await db
+    .insert(copyPositions)
+    .values({
+      userId: input.userId,
+      strategyId: input.strategyId,
+      agentWalletId: input.agentWalletId,
+      sourceTraderId: input.sourceTraderId,
+      exchange: 'hyperliquid',
+      symbol: input.symbol,
+      side: input.side,
+      quantity: input.quantity.toString(),
+      entryPrice: input.entryPrice.toString(),
+      markPrice: input.markPrice?.toString(),
+      unrealizedPnl: unrealizedPnl?.toString(),
+      leverage: input.leverage?.toString(),
+      marginUsed: input.marginUsed?.toString(),
+    } as NewCopyPosition)
+    .returning();
+
+  return position;
 }
 
 /**
