@@ -263,15 +263,15 @@ export function assetPositionToTraderPositionRow(
   markPrice: string,
 ): TraderPositionRow {
   const position = assetPosition.position;
-  const signedSize = Number(position.szi);
-  const side: 'long' | 'short' = signedSize >= 0 ? 'long' : 'short';
+  const side: 'long' | 'short' = position.szi.startsWith('-') ? 'short' : 'long';
+  const quantity = position.szi.replace(/^[+-]/, '');
 
   return {
     traderId,
     traderAddress,
     symbol: position.coin,
     side,
-    quantity: Math.abs(signedSize).toString(),
+    quantity,
     entryPrice: position.entryPx,
     markPrice,
     positionValueUsd: position.positionValue,

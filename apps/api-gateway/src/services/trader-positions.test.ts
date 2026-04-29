@@ -69,4 +69,31 @@ describe('assetPositionToTraderPositionRow', () => {
     expect(row.quantity).toBe('2.5');
     expect(row.liquidationPrice).toBeNull();
   });
+
+  it('preserves high-precision short quantity', () => {
+    const position: HyperliquidAssetPosition = {
+      type: 'oneWay',
+      position: {
+        coin: 'ETH',
+        szi: '-2.500000000000000001',
+        entryPx: '3000',
+        positionValue: '7500',
+        unrealizedPnl: '-100',
+        marginUsed: '1500',
+        liquidationPx: null,
+        returnOnEquity: '-0.0666',
+        leverage: { type: 'cross', value: 5 },
+      },
+    };
+
+    const row = assetPositionToTraderPositionRow(
+      position,
+      'trader-1',
+      '0x1111111111111111111111111111111111111111',
+      '2950',
+    );
+
+    expect(row.side).toBe('short');
+    expect(row.quantity).toBe('2.500000000000000001');
+  });
 });
