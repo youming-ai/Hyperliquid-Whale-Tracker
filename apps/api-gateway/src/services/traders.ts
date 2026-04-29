@@ -1,10 +1,10 @@
 import type { TraderStats, TraderTrades } from '@hyperdash/database';
-import { traderStats, traderTrades } from '@hyperdash/database';
-import { and, count, desc, eq, gte, lte, sql } from 'drizzle-orm';
+import { traderPositions, traderStats, traderTrades } from '@hyperdash/database';
+import { and, asc, count, desc, eq, gte, lte, sql } from 'drizzle-orm';
 import { getDatabaseConnection } from './connection';
 
-export type Timeframe = '7d' | '30d' | 'all';
-export type SortBy = 'pnl' | 'winrate' | 'trades' | 'sharpe';
+export type Timeframe = '7d' | '30d' | '90d' | 'all';
+export type SortBy = 'pnl' | 'winrate' | 'winRate' | 'trades' | 'sharpe' | 'equity';
 export type SortOrder = 'asc' | 'desc';
 
 export interface GetTradersOptions {
@@ -41,30 +41,35 @@ export async function getTraders(options: GetTradersOptions = {}): Promise<Trade
 
   const db = getDatabaseConnection().getDatabase();
 
+  const normalizedSortBy = sortBy === 'winRate' ? 'winrate' : sortBy === 'equity' ? 'trades' : sortBy;
+  const normalizedTimeframe = timeframe === '90d' ? '30d' : timeframe;
+
   // Map sortBy to column
   const sortColumnMap: Record<SortBy, string> = {
     pnl:
-      timeframe === '7d'
+      normalizedTimeframe === '7d'
         ? traderStats.pnl7d
-        : timeframe === '30d'
+        : normalizedTimeframe === '30d'
           ? traderStats.pnl30d
           : traderStats.pnlAll,
     winrate: traderStats.winrate,
+    winRate: traderStats.winrate,
     trades: traderStats.totalTrades,
+    equity: traderStats.totalTrades,
     sharpe: traderStats.sharpeRatio,
   };
 
-  const sortColumn = sortColumnMap[sortBy];
-  const orderFn = sortOrder === 'asc' ? desc : sql; // desc is actually a function, use sql template
+  const sortColumn = sortColumnMap[normalizedSortBy];
+  const orderFn = sortOrder === 'desc' ? desc : asc;
 
   // Build where conditions
   const conditions = [];
 
   if (minPnl !== undefined) {
     const column =
-      timeframe === '7d'
+      normalizedTimeframe === '7d'
         ? traderStats.pnl7d
-        : timeframe === '30d'
+        : normalizedTimeframe === '30d'
           ? traderStats.pnl30d
           : traderStats.pnlAll;
     conditions.push(gte(column, minPnl));
@@ -109,23 +114,14 @@ export async function getTraders(options: GetTradersOptions = {}): Promise<Trade
     })
     .from(traderStats)
     .where(whereClause)
-    .orderBy(
-      sortColumn === traderStats.pnl7d ||
-        sortColumn === traderStats.pnl30d ||
-        sortColumn === traderStats.pnlAll
-        ? sortOrder === 'desc'
-          ? desc(sortColumn)
-          : sortColumn
-        : sortOrder === 'desc'
-          ? desc(traderStats.winrate)
-          : traderStats.winrate,
-    )
+    .orderBy(orderFn(sortColumn))
     .limit(limit)
     .offset(offset);
 
   // Add rank
   return traders.map((t, i) => ({
     ...t,
+    traderId: t.traderId,
     rank: offset + i + 1,
   }));
 }
@@ -407,4 +403,14 @@ export async function addTraderTrade(
     .returning();
 
   return inserted;
+}
+
+export async function getTraderPositions(address: string) {
+  const db = getDatabaseConnection().getDatabase();
+
+  return db
+    .select()
+    .from(traderPositions)
+    .where(eq(traderPositions.traderAddress, address))
+    .orderBy(desc(traderPositions.positionValueUsd));
 }
