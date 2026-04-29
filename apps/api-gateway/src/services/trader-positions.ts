@@ -1,16 +1,16 @@
 import { traderPositions } from '@hyperdash/database';
-import { eq, inArray } from 'drizzle-orm';
-import { getDatabaseConnection } from './connection';
+import { and, eq, sql } from 'drizzle-orm';
+import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
+import * as schema from '@hyperdash/database';
 import type { TraderPositionRow } from './hyperliquid';
 
 export async function replaceTraderPositions(
+  db: PostgresJsDatabase<typeof schema>,
   traderId: string,
   rows: TraderPositionRow[],
 ): Promise<void> {
-  const db = getDatabaseConnection().getDatabase();
-
   await db.transaction(async (tx) => {
-    const existingRows = await tx
+    const existingPositions = await tx
       .select({
         id: traderPositions.id,
         symbol: traderPositions.symbol,
@@ -20,25 +20,26 @@ export async function replaceTraderPositions(
       .where(eq(traderPositions.traderId, traderId));
 
     const existingByKey = new Map(
-      existingRows.map((row) => [`${row.symbol}:${row.side}`, row.id]),
+      existingPositions.map((p) => [`${p.symbol}:${p.side}`, p.id]),
     );
-    const activeKeys = new Set(rows.map((row) => `${row.symbol}:${row.side}`));
+    const newKeys = new Set(rows.map((row) => `${row.symbol}:${row.side}`));
 
     for (const row of rows) {
-      const existingId = existingByKey.get(`${row.symbol}:${row.side}`);
+      const key = `${row.symbol}:${row.side}`;
+      const existingId = existingByKey.get(key);
       if (existingId) {
-        await tx.update(traderPositions).set(row).where(eq(traderPositions.id, existingId));
+        await tx.update(traderPositions).set(row as any).where(eq(traderPositions.id, existingId));
       } else {
         await tx.insert(traderPositions).values(row as any);
       }
     }
 
-    const staleIds = existingRows
-      .filter((row) => !activeKeys.has(`${row.symbol}:${row.side}`))
-      .map((row) => row.id);
+    const staleIds = Array.from(existingByKey.entries())
+      .filter(([key]) => !newKeys.has(key))
+      .map(([, id]) => id);
 
     if (staleIds.length > 0) {
-      await tx.delete(traderPositions).where(inArray(traderPositions.id, staleIds));
+      await tx.delete(traderPositions).where(sql`${traderPositions.id} = ANY(${staleIds})`);
     }
   });
 }

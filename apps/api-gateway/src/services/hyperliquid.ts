@@ -430,7 +430,7 @@ export function fillToTraderTradeRow(
  */
 export async function fetchTraderData(
   address: string,
-): Promise<{ stats: TraderStatsSummary; fills: HyperliquidFill[] } | null> {
+): Promise<{ stats: TraderStatsSummary; fills: HyperliquidFill[]; state: HyperliquidClearinghouseState | null } | null> {
   const [fills, state] = await Promise.all([
     getUserFills(address),
     // A brand-new or non-perp address may 404 on clearinghouseState; that's
@@ -444,5 +444,5 @@ export async function fetchTraderData(
   const stats = calculateTraderStats(fills, state, address);
   if (!stats) return null;
 
-  return { stats, fills };
+  return { stats, fills, state };
 }
