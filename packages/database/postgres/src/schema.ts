@@ -7,6 +7,7 @@ import {
   pgTable,
   text,
   timestamp,
+  uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
 
@@ -152,7 +153,7 @@ export const traderPositions = pgTable(
     traderIdIdx: index('idx_trader_positions_trader_id').on(table.traderId),
     addressIdx: index('idx_trader_positions_address').on(table.traderAddress),
     symbolIdx: index('idx_trader_positions_symbol').on(table.symbol),
-    uniquePosition: index('idx_trader_positions_unique').on(
+    uniquePosition: uniqueIndex('idx_trader_positions_unique').on(
       table.traderId,
       table.symbol,
       table.side,
