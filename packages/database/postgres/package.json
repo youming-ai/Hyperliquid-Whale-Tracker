@@ -8,7 +8,7 @@
     "build": "tsc",
     "dev": "tsc --watch",
     "clean": "rm -rf dist",
-    "migrate": "tsx migrate.ts",
+    "migrate": "tsx src/migrate.ts",
     "migrate:generate": "drizzle-kit generate:pg",
     "migrate:push": "tsx push-migration.ts",
     "seed": "tsx seed.ts",
