@@ -11,14 +11,17 @@
 
 import { createPostgresConnection, traderStats, traderTrades } from '@hyperdash/database';
 import { and, eq } from 'drizzle-orm';
-import { fetchTraderData, fillToTraderTradeRow } from '../services/hyperliquid';
+import { LEADERBOARD_TRADER_SEEDS } from '../config/leaderboard-traders';
+import {
+  assetPositionToTraderPositionRow,
+  fetchTraderData,
+  fillToTraderTradeRow,
+  getAllMids,
+  getClearinghouseState,
+} from '../services/hyperliquid';
+import { replaceTraderPositions } from '../services/trader-positions';
 
-// Known whale/active trader addresses on Hyperliquid
-// These can be expanded over time or fetched from external sources
-const KNOWN_WHALE_ADDRESSES: string[] = [
-  // Add known Hyperliquid whale addresses here
-  // Example: "0x1234567890abcdef1234567890abcdef12345678"
-];
+const KNOWN_WHALE_ADDRESSES = LEADERBOARD_TRADER_SEEDS.map((seed) => seed.address);
 
 // Configuration
 const INGESTION_CONFIG = {
@@ -132,6 +135,32 @@ async function ingestTraderAddress(
             await db.insert(traderTrades).values(row as any);
           }
         }
+      }
+
+      // Persist current trader positions after stats and trades are written.
+      try {
+        const [state, midsResult] = await Promise.all([
+          getClearinghouseState(address).catch(() => null),
+          getAllMids().catch(() => null),
+        ]);
+        const mids: Record<string, string> = midsResult ?? {};
+
+        const positionRows =
+          state?.assetPositions
+            ?.filter((assetPosition) => Number(assetPosition.position.szi) !== 0)
+            .map((assetPosition) =>
+              assetPositionToTraderPositionRow(
+                assetPosition,
+                traderId,
+                address,
+                mids[assetPosition.position.coin] ?? assetPosition.position.entryPx,
+              ),
+            ) ?? [];
+
+        await replaceTraderPositions(traderId, positionRows);
+      } catch (error) {
+        console.error(`Failed to persist positions for ${address}:`, error);
+        // Non-fatal: fills and stats were already stored.
       }
 
       return { success: true, updated: !!existingTrader };
