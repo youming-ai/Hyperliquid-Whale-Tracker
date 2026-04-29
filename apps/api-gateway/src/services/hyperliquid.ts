@@ -239,6 +239,54 @@ export interface TraderStatsSummary {
   lastTradeAt: string | null;
 }
 
+export interface TraderPositionRow {
+  traderId: string;
+  traderAddress: string;
+  symbol: string;
+  side: 'long' | 'short';
+  quantity: string;
+  entryPrice: string;
+  markPrice: string;
+  positionValueUsd: string;
+  unrealizedPnl: string;
+  marginUsed: string;
+  leverage: string;
+  liquidationPrice: string | null;
+  metadata: Record<string, unknown>;
+  lastUpdatedAt: Date;
+}
+
+export function assetPositionToTraderPositionRow(
+  assetPosition: HyperliquidAssetPosition,
+  traderId: string,
+  traderAddress: string,
+  markPrice: string,
+): TraderPositionRow {
+  const position = assetPosition.position;
+  const signedSize = Number(position.szi);
+  const side: 'long' | 'short' = signedSize >= 0 ? 'long' : 'short';
+
+  return {
+    traderId,
+    traderAddress,
+    symbol: position.coin,
+    side,
+    quantity: Math.abs(signedSize).toString(),
+    entryPrice: position.entryPx,
+    markPrice,
+    positionValueUsd: position.positionValue,
+    unrealizedPnl: position.unrealizedPnl,
+    marginUsed: position.marginUsed,
+    leverage: String(position.leverage.value),
+    liquidationPrice: position.liquidationPx,
+    metadata: {
+      marginMode: position.leverage.type,
+      returnOnEquity: position.returnOnEquity,
+    },
+    lastUpdatedAt: new Date(),
+  };
+}
+
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 /**
