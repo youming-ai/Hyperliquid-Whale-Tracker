@@ -14,9 +14,9 @@ export const tradersRouter = t.router({
       z.object({
         limit: z.number().min(1).max(100).default(20),
         offset: z.number().min(0).default(0),
-        sortBy: z.enum(['pnl', 'winrate', 'trades', 'sharpe']).default('pnl'),
+        sortBy: z.enum(['pnl', 'winrate', 'winRate', 'trades', 'sharpe', 'equity']).default('pnl'),
         sortOrder: z.enum(['asc', 'desc']).default('desc'),
-        timeframe: z.enum(['7d', '30d', 'all']).default('7d'),
+        timeframe: z.enum(['7d', '30d', '90d', 'all']).default('7d'),
         minPnl: z.number().optional(),
         minWinrate: z.number().optional(),
         minTrades: z.number().optional(),
