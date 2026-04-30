@@ -11,6 +11,7 @@
 
 import * as schema from '@hyperdash/database';
 import { and, desc, eq, sql } from 'drizzle-orm';
+import { calculateCopyTargets } from './copy-targets';
 import { getDatabaseConnection } from '../services/connection';
 
 export interface ExecutionConfig {
@@ -212,7 +213,11 @@ export class CopyTradingEngine {
     const targetPositions = await this.calculateTargetPositions(strategy, allocations);
 
     // Calculate position deltas
-    const deltas = this.calculatePositionDeltas(currentPositions, targetPositions);
+    const deltas = this.calculatePositionDeltas(
+      currentPositions,
+      targetPositions,
+      Number(strategy.minOrderUsd || 5),
+    );
 
     // Execute trades if needed
     if (deltas.length > 0) {
@@ -254,7 +259,7 @@ export class CopyTradingEngine {
 
     const result = new Map();
     for (const pos of positions) {
-      result.set(pos.symbol, {
+      result.set(`${pos.symbol}:${pos.side}`, {
         quantity: Number(pos.quantity),
         side: pos.side as 'long' | 'short',
         entryPrice: Number(pos.entryPrice),
@@ -271,16 +276,53 @@ export class CopyTradingEngine {
     strategy: any,
     allocations: any[],
   ): Promise<Map<string, { quantity: number; side: string }>> {
+    const traderIds = allocations.map((allocation) => allocation.traderId);
+
+    if (traderIds.length === 0) return new Map();
+
+    const traders = await this.db
+      .select({
+        traderId: schema.traderStats.traderId,
+        equityUsd: schema.traderStats.equityUsd,
+      })
+      .from(schema.traderStats)
+      .where(sql`${schema.traderStats.traderId} = ANY(${traderIds})`);
+
+    const sourcePositions = await this.db
+      .select()
+      .from(schema.traderPositions)
+      .where(sql`${schema.traderPositions.traderId} = ANY(${traderIds})`);
+
+    const targets = calculateCopyTargets({
+      strategy: {
+        maxPositionUsd: Number(strategy.maxPositionUsd || 10_000),
+        maxLeverage: Number(strategy.maxLeverage || 3),
+        minOrderUsd: Number(strategy.minOrderUsd || 5),
+      },
+      allocations: allocations.map((allocation) => ({
+        traderId: allocation.traderId,
+        weight: Number(allocation.weight),
+      })),
+      traders: traders.map((trader) => ({
+        traderId: trader.traderId,
+        equityUsd: Number(trader.equityUsd || 0),
+      })),
+      sourcePositions: sourcePositions.map((position) => ({
+        traderId: position.traderId,
+        symbol: position.symbol,
+        side: position.side,
+        quantity: Number(position.quantity),
+        markPrice: Number(position.markPrice),
+        positionValueUsd: Number(position.positionValueUsd),
+      })),
+    });
+
     const targetPositions = new Map<string, { quantity: number; side: string }>();
-    const userCapital = Number(strategy.maxPositionUsd || 10000); // Default capital
-
-    for (const alloc of allocations) {
-      const weight = Number(alloc.weight);
-      const capital = userCapital * weight;
-
-      // Get trader's current positions from trader_trades
-      // This is simplified - in production would need to aggregate from trader_trades
-      // For now, we'll use placeholder logic
+    for (const target of targets) {
+      targetPositions.set(`${target.symbol}:${target.side}`, {
+        quantity: target.targetQuantity,
+        side: target.side,
+      });
     }
 
     return targetPositions;
@@ -292,9 +334,9 @@ export class CopyTradingEngine {
   private calculatePositionDeltas(
     current: Map<string, { quantity: number; side: string }>,
     target: Map<string, { quantity: number; side: string }>,
+    minOrderSize: number,
   ): PositionDelta[] {
     const deltas: PositionDelta[] = [];
-    const minOrderSize = Number(strategy?.minOrderUsd || 5);
 
     // All symbols involved
     const allSymbols = new Set([...current.keys(), ...target.keys()]);
@@ -305,7 +347,7 @@ export class CopyTradingEngine {
 
       const currentQty = curr?.quantity || 0;
       const targetQty = targ?.quantity || 0;
-      const side = targ?.side || curr?.side || 'long';
+      const side = (targ?.side || curr?.side || 'long') as 'long' | 'short';
 
       const delta = targetQty - currentQty;
 
@@ -340,7 +382,9 @@ export class CopyTradingEngine {
         side: delta.action,
         orderType: 'market',
         quantity: Math.abs(delta.delta).toString(),
-        status: 'pending',
+        status: 'submitted',
+        submittedAt: new Date(),
+        errorMessage: null,
       } as any);
 
       // TODO: Integrate with Hyperliquid API to execute actual trades
