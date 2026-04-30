@@ -70,10 +70,10 @@ function TraderDetailPage() {
 
   // Fetch trader positions
   // @ts-expect-error - AppRouter is any type until proper type generation is set up
-  const { data: positions = [] } = trpc.traders.positions.useQuery({ address });
+  const { data: positions = [], isLoading: isLoadingPositions } = trpc.traders.positions.useQuery({ address });
 
   // Fetch trader trades
-  const { data: trades = [], isLoading: isLoadingTrades } =
+  const { data: tradesData, isLoading: isLoadingTrades } =
     // @ts-expect-error - AppRouter is any type until proper type generation is set up
     trpc.traders.trades.useQuery(
       { address, limit: 10 },
@@ -81,6 +81,8 @@ function TraderDetailPage() {
         staleTime: 30_000,
       },
     );
+
+  const trades = tradesData?.trades ?? [];
 
   if (isLoadingProfile) {
     return (
@@ -159,10 +161,10 @@ function TraderDetailPage() {
             negative
           />
           <StatCard label="Total Trades" value={`${trader?.totalTrades?.toLocaleString()}`} />
-          <StatCard
-            label="Avg Position Size"
-            value={`$${formatCompactNumber(trader?.avgPositionSize ?? 0)}`}
-          />
+            <StatCard
+              label="Avg Position Size"
+              value={`$${formatCompactNumber(trader?.avgPositionSizeUsd ?? 0)}`}
+            />
         </div>
       </div>
 
@@ -182,7 +184,7 @@ function TraderDetailPage() {
             </div>
             <div>
               <p className="text-sm opacity-60 mb-1">Avg Holding Time</p>
-              <p className="text-lg font-bold">{trader?.avgHoldingTime}</p>
+              <p className="text-lg font-bold">{trader?.avgHoldTimeSeconds}s</p>
             </div>
             <div>
               <p className="text-sm opacity-60 mb-1">Long Bias</p>
@@ -207,7 +209,9 @@ function TraderDetailPage() {
       {/* Open Positions */}
       <section className="mt-8">
         <h2 className="text-xl font-semibold mb-4">Current Positions</h2>
-        {positions.length === 0 ? (
+        {isLoadingPositions ? (
+          <div className="text-sm opacity-60">Loading positions...</div>
+        ) : positions.length === 0 ? (
           <div className="text-sm opacity-60">No open positions.</div>
         ) : (
           <div className="overflow-x-auto rounded-lg border border-border">

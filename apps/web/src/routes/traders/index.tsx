@@ -198,7 +198,7 @@ function TraderCard({
     pnl7d: number;
     pnl30d: number;
     pnl90d?: number;
-    pnlAllTime?: number;
+    pnlAll?: number;
     winRate: number;
     totalTrades: number;
     equity: number;
@@ -220,7 +220,7 @@ function TraderCard({
       case '30d':
         return trader.pnl30d;
       case 'all':
-        return trader.pnlAllTime ?? trader.pnl30d; // Fallback to 30d if all time not available
+        return trader.pnlAll ?? trader.pnl30d; // Fallback to 30d if all time not available
       default:
         return trader.pnl7d;
     }
