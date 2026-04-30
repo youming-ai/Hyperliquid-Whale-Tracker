@@ -11,8 +11,8 @@ export const Route = createFileRoute('/traders/')({
   component: TradersPage,
 });
 
-type Timeframe = '7d' | '30d' | '90d' | 'all';
-type SortBy = 'pnl' | 'winRate' | 'trades' | 'equity';
+type Timeframe = '7d' | '30d' | 'all';
+type SortBy = 'pnl' | 'winrate' | 'trades' | 'sharpe';
 type SortOrder = 'asc' | 'desc';
 
 function TradersPage() {
@@ -23,14 +23,12 @@ function TradersPage() {
 
   // Use tRPC to fetch traders with current filters
   // @ts-expect-error - AppRouter is any type until proper type generation is set up
-  const { data, isLoading, refetch } = trpc.traders.list.useQuery({
-    input: {
-      limit: 20,
-      sortBy,
-      sortOrder,
-      timeframe,
-      activeOnly: showActiveOnly,
-    },
+  const { data, isLoading } = trpc.traders.list.useQuery({
+    limit: 20,
+    sortBy,
+    sortOrder,
+    timeframe,
+    isActive: showActiveOnly,
   });
 
   const handleTimeframeChange = (newTimeframe: Timeframe) => {
@@ -107,13 +105,6 @@ function TradersPage() {
           30D
         </Button>
         <Button
-          variant={timeframe === '90d' ? 'default' : 'outline'}
-          size="sm"
-          onClick={() => handleTimeframeChange('90d')}
-        >
-          90D
-        </Button>
-        <Button
           variant={timeframe === 'all' ? 'default' : 'outline'}
           size="sm"
           onClick={() => handleTimeframeChange('all')}
@@ -133,11 +124,11 @@ function TradersPage() {
           PnL {sortBy === 'pnl' && (sortOrder === 'asc' ? '↑' : '↓')}
         </Button>
         <Button
-          variant={sortBy === 'winRate' ? 'default' : 'outline'}
+          variant={sortBy === 'winrate' ? 'default' : 'outline'}
           size="sm"
-          onClick={() => handleSortChange('winRate')}
+          onClick={() => handleSortChange('winrate')}
         >
-          Win Rate {sortBy === 'winRate' && (sortOrder === 'asc' ? '↑' : '↓')}
+          Win Rate {sortBy === 'winrate' && (sortOrder === 'asc' ? '↑' : '↓')}
         </Button>
         <Button
           variant={sortBy === 'trades' ? 'default' : 'outline'}
@@ -147,11 +138,11 @@ function TradersPage() {
           Trades {sortBy === 'trades' && (sortOrder === 'asc' ? '↑' : '↓')}
         </Button>
         <Button
-          variant={sortBy === 'equity' ? 'default' : 'outline'}
+          variant={sortBy === 'sharpe' ? 'default' : 'outline'}
           size="sm"
-          onClick={() => handleSortChange('equity')}
+          onClick={() => handleSortChange('sharpe')}
         >
-          Equity {sortBy === 'equity' && (sortOrder === 'asc' ? '↑' : '↓')}
+          Sharpe {sortBy === 'sharpe' && (sortOrder === 'asc' ? '↑' : '↓')}
         </Button>
       </div>
 
@@ -213,6 +204,7 @@ function TraderCard({
     equity: number;
     sharpe: number;
     maxDrawdown: number;
+    traderId: string;
     isActive: boolean;
     lastTradeAt: string | null;
     rank: number;
@@ -227,8 +219,6 @@ function TraderCard({
         return trader.pnl7d;
       case '30d':
         return trader.pnl30d;
-      case '90d':
-        return trader.pnl90d ?? trader.pnl30d; // Fallback to 30d if 90d not available
       case 'all':
         return trader.pnlAllTime ?? trader.pnl30d; // Fallback to 30d if all time not available
       default:

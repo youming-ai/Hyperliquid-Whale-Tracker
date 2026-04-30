@@ -59,9 +59,8 @@ function TraderDetailPage() {
   const { address } = Route.useParams();
 
   // Fetch trader profile data
-  // @ts-expect-error - AppRouter is any type until proper type generation is set up
   const { data: trader, isLoading: isLoadingProfile } =
-    // @ts-expect-error
+    // @ts-expect-error - AppRouter is any type until proper type generation is set up
     trpc.traders.byAddress.useQuery(
       { address },
       {
@@ -69,10 +68,13 @@ function TraderDetailPage() {
       },
     );
 
-  // Fetch trader trades
+  // Fetch trader positions
   // @ts-expect-error - AppRouter is any type until proper type generation is set up
+  const { data: positions = [] } = trpc.traders.positions.useQuery({ address });
+
+  // Fetch trader trades
   const { data: trades = [], isLoading: isLoadingTrades } =
-    // @ts-expect-error
+    // @ts-expect-error - AppRouter is any type until proper type generation is set up
     trpc.traders.trades.useQuery(
       { address, limit: 10 },
       {
@@ -203,18 +205,37 @@ function TraderDetailPage() {
       </Card>
 
       {/* Open Positions */}
-      {/* TODO: Implement positions API */}
-      <Card className="mb-8">
-        <CardHeader>
-          <CardTitle>Open Positions</CardTitle>
-          <CardDescription>Current active positions</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="text-center py-8 opacity-60">
-            Open positions data will be available once connected to Hyperliquid API
+      <section className="mt-8">
+        <h2 className="text-xl font-semibold mb-4">Current Positions</h2>
+        {positions.length === 0 ? (
+          <div className="text-sm opacity-60">No open positions.</div>
+        ) : (
+          <div className="overflow-x-auto rounded-lg border border-border">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/50">
+                <tr>
+                  <th className="px-4 py-3 text-left">Symbol</th>
+                  <th className="px-4 py-3 text-left">Side</th>
+                  <th className="px-4 py-3 text-right">Qty</th>
+                  <th className="px-4 py-3 text-right">Value</th>
+                  <th className="px-4 py-3 text-right">PnL</th>
+                </tr>
+              </thead>
+              <tbody>
+                {positions.map((position: any) => (
+                  <tr key={position.id} className="border-t border-border">
+                    <td className="px-4 py-3 font-medium">{position.symbol}</td>
+                    <td className="px-4 py-3 capitalize">{position.side}</td>
+                    <td className="px-4 py-3 text-right">{position.quantity}</td>
+                    <td className="px-4 py-3 text-right">${position.positionValueUsd.toLocaleString()}</td>
+                    <td className="px-4 py-3 text-right">${position.unrealizedPnl.toLocaleString()}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-        </CardContent>
-      </Card>
+        )}
+      </section>
 
       {/* Recent Trades */}
       <Card>
