@@ -55,14 +55,31 @@ export async function placeOrder(
   };
 
   const signature = await signAction(account, action, nonce);
+  const body = JSON.stringify({ action, signature, nonce });
 
-  const res = await fetch(HYPERLIQUID_EXCHANGE_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action, signature, nonce }),
-  });
+  for (let attempt = 0; attempt <= 3; attempt++) {
+    try {
+      const res = await fetch(HYPERLIQUID_EXCHANGE_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body,
+      });
 
-  return res.json() as Promise<ExchangeResponse>;
+      if (res.status === 429 || res.status >= 500) {
+        if (attempt < 3) {
+          await new Promise((r) => setTimeout(r, 1000 * 2 ** attempt));
+          continue;
+        }
+      }
+
+      return res.json() as Promise<ExchangeResponse>;
+    } catch (error) {
+      if (attempt === 3) throw error;
+      await new Promise((r) => setTimeout(r, 1000 * 2 ** attempt));
+    }
+  }
+
+  throw new Error('Failed to place order after retries');
 }
 
 async function signAction(
@@ -70,15 +87,43 @@ async function signAction(
   action: any,
   nonce: number,
 ): Promise<{ r: string; s: string; v: number }> {
-  const message = JSON.stringify({ action, nonce });
-  const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(message));
-  const hashHex = `0x${Buffer.from(hash).toString('hex')}`;
+  const actionHash = await computeActionHash(action);
 
-  const signature = await account.signMessage({ message: { raw: hashHex as `0x${string}` } });
+  const domain = {
+    name: 'HyperliquidSignTransaction',
+    version: '1',
+    chainId: 421614,
+    verifyingContract: '0x0000000000000000000000000000000000000000' as const,
+  };
+
+  const types = {
+    HyperliquidTransaction: [
+      { name: 'action', type: 'bytes32' },
+      { name: 'nonce', type: 'uint64' },
+    ],
+  };
+
+  const message = {
+    action: actionHash,
+    nonce: BigInt(nonce),
+  };
+
+  const signature = await account.signTypedData({
+    domain,
+    types,
+    primaryType: 'HyperliquidTransaction',
+    message,
+  });
 
   const r = signature.slice(0, 66);
   const s = `0x${signature.slice(66, 130)}`;
   const v = Number.parseInt(signature.slice(130, 132), 16);
 
   return { r, s, v };
+}
+
+async function computeActionHash(action: any): Promise<`0x${string}`> {
+  const encoded = new TextEncoder().encode(JSON.stringify(action));
+  const hash = await crypto.subtle.digest('SHA-256', encoded);
+  return `0x${Buffer.from(hash).toString('hex')}`;
 }
