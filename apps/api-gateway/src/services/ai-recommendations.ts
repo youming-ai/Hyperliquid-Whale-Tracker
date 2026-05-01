@@ -1,5 +1,18 @@
 import OpenAI from 'openai';
 
+let openaiClient: OpenAI | null = null;
+
+function getOpenAIClient(): OpenAI {
+  if (!openaiClient) {
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) {
+      throw new Error('OPENAI_API_KEY not configured');
+    }
+    openaiClient = new OpenAI({ apiKey });
+  }
+  return openaiClient;
+}
+
 export interface TraderData {
   traderId: string;
   address: string;
@@ -75,7 +88,8 @@ ${traderSummaries}
 ## Current Trader Positions
 ${positionSummaries || 'No open positions.'}
 
-## ${strategyInfo}
+## Current Strategy
+${strategyInfo}
 
 ## User Constraints
 - Max Leverage: ${input.constraints.maxLeverage}
@@ -98,7 +112,12 @@ Provide recommendations in JSON format:
 }
 
 export function parseAiResponse(response: string): AiRecommendationOutput {
-  const parsed = JSON.parse(response);
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = JSON.parse(response);
+  } catch (e) {
+    throw new Error(`Invalid JSON response: ${e instanceof Error ? e.message : 'unknown error'}`);
+  }
 
   if (!parsed.traders || !Array.isArray(parsed.traders)) {
     throw new Error('Invalid response: missing traders array');
@@ -115,6 +134,9 @@ export function parseAiResponse(response: string): AiRecommendationOutput {
   for (const trader of parsed.traders) {
     if (!trader.traderId || typeof trader.traderId !== 'string') {
       throw new Error('Invalid trader: missing traderId');
+    }
+    if (!trader.reason || typeof trader.reason !== 'string') {
+      throw new Error('Invalid trader: missing reason');
     }
     if (typeof trader.confidence !== 'number' || trader.confidence < 0 || trader.confidence > 1) {
       throw new Error('Invalid trader: confidence must be 0-1');
@@ -134,12 +156,7 @@ export function parseAiResponse(response: string): AiRecommendationOutput {
 export async function getAiRecommendations(
   input: RecommendationInput,
 ): Promise<AiRecommendationOutput> {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    throw new Error('OPENAI_API_KEY not configured');
-  }
-
-  const openai = new OpenAI({ apiKey });
+  const openai = getOpenAIClient();
   const prompt = buildRecommendationPrompt(input);
 
   const completion = await openai.chat.completions.create({
