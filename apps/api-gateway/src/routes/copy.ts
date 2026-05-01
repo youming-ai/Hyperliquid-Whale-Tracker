@@ -1,6 +1,17 @@
 import { kycProcedure, protectedProcedure, t } from '@hyperdash/contracts';
+import {
+  aiRecommendations,
+  copyAllocations,
+  copyStrategies,
+  getDatabaseConnection,
+  traderPositions,
+  traderStats,
+} from '@hyperdash/database';
 import { schemas } from '@hyperdash/shared-types';
+import { TRPCError } from '@trpc/server';
+import { and, desc, eq, sql } from 'drizzle-orm';
 import { z } from 'zod';
+import { getAiRecommendations } from '../services/ai-recommendations';
 import * as copyService from '../services/copy-trading';
 
 /**
@@ -383,100 +394,208 @@ export const copyRouter = t.router({
   recommendations: protectedProcedure
     .input(
       z.object({
-        riskTolerance: z.enum(['low', 'medium', 'high']).default('medium'),
-        targetReturn: z.number().optional(),
-        maxDrawdown: z.number().optional(),
-        excludeTraders: z.array(z.string()).optional(),
+        strategyId: z.string().optional(),
+        riskTolerance: z.enum(['conservative', 'moderate', 'aggressive']).default('moderate'),
       }),
     )
     .query(async ({ input, ctx }) => {
-      const { riskTolerance, targetReturn, maxDrawdown, excludeTraders } = input;
       const userId = ctx.user!.userId;
+      const db = getDatabaseConnection().getDatabase();
 
-      // For now, return mock recommendations
-      // In production, this would analyze trader performance and suggest allocations
-      const mockRecommendations = [
-        {
-          name: 'Conservative Portfolio',
-          description: 'Low-risk strategy focusing on stable returns',
-          riskTolerance: 'low',
-          expectedReturn: 0.15,
-          maxDrawdown: 0.05,
-          suggestedAllocation: [
-            {
-              traderId: 'trader_stable_1',
-              weight: 0.5,
-              reason: 'Consistent performer with low volatility',
-            },
-            {
-              traderId: 'trader_stable_2',
-              weight: 0.3,
-              reason: 'Solid risk management',
-            },
-            {
-              traderId: 'trader_stable_3',
-              weight: 0.2,
-              reason: 'Diversification benefits',
-            },
-          ],
-        },
-        {
-          name: 'Balanced Growth',
-          description: 'Moderate risk with good return potential',
-          riskTolerance: 'medium',
-          expectedReturn: 0.25,
-          maxDrawdown: 0.12,
-          suggestedAllocation: [
-            {
-              traderId: 'trader_growth_1',
-              weight: 0.4,
-              reason: 'Strong growth track record',
-            },
-            {
-              traderId: 'trader_growth_2',
-              weight: 0.35,
-              reason: 'Consistent outperformance',
-            },
-            {
-              traderId: 'trader_growth_3',
-              weight: 0.25,
-              reason: 'Momentum specialist',
-            },
-          ],
-        },
-        {
-          name: 'Aggressive Returns',
-          description: 'High-risk strategy targeting maximum returns',
-          riskTolerance: 'high',
-          expectedReturn: 0.45,
-          maxDrawdown: 0.25,
-          suggestedAllocation: [
-            {
-              traderId: 'trader_aggressive_1',
-              weight: 0.6,
-              reason: 'High alpha generation',
-            },
-            {
-              traderId: 'trader_aggressive_2',
-              weight: 0.4,
-              reason: 'Specialized in volatile assets',
-            },
-          ],
-        },
-      ];
+      // Get top traders
+      const topTraders = await db
+        .select({
+          traderId: traderStats.traderId,
+          address: traderStats.address,
+          pnl7d: traderStats.pnl7d,
+          pnl30d: traderStats.pnl30d,
+          winrate: traderStats.winrate,
+          totalTrades: traderStats.totalTrades,
+          equityUsd: traderStats.equityUsd,
+          maxDrawdown: traderStats.maxDrawdown,
+          sharpeRatio: traderStats.sharpeRatio,
+        })
+        .from(traderStats)
+        .where(sql`${traderStats.lastTradeAt} > NOW() - INTERVAL '7 days'`)
+        .orderBy(desc(traderStats.pnl7d))
+        .limit(50);
 
-      // Filter based on user's risk tolerance
-      const filtered = mockRecommendations.filter((rec) => rec.riskTolerance === riskTolerance);
+      // Get current positions for top traders
+      const traderIds = topTraders.map((t) => t.traderId);
+      const positions =
+        traderIds.length > 0
+          ? await db
+              .select()
+              .from(traderPositions)
+              .where(sql`${traderPositions.traderId} = ANY(${traderIds})`)
+          : [];
+
+      // Get current strategy if specified
+      let currentStrategy = null;
+      if (input.strategyId) {
+        const strategies = await db
+          .select()
+          .from(copyStrategies)
+          .where(
+            and(eq(copyStrategies.id, input.strategyId), eq(copyStrategies.userId, userId)),
+          )
+          .limit(1);
+        currentStrategy = strategies[0] || null;
+      }
+
+      // Call AI service
+      const recommendation = await getAiRecommendations({
+        traders: topTraders.map((t) => ({
+          ...t,
+          pnl7d: Number(t.pnl7d || 0),
+          pnl30d: Number(t.pnl30d || 0),
+          winrate: Number(t.winrate || 0),
+          totalTrades: t.totalTrades || 0,
+          equityUsd: Number(t.equityUsd || 0),
+          maxDrawdown: Number(t.maxDrawdown || 0),
+          sharpeRatio: Number(t.sharpeRatio || 0),
+          isActive: true,
+        })),
+        positions: positions.map((p) => ({
+          traderId: p.traderId,
+          symbol: p.symbol,
+          side: p.side,
+          quantity: Number(p.quantity),
+          positionValueUsd: Number(p.positionValueUsd),
+          unrealizedPnl: Number(p.unrealizedPnl || 0),
+        })),
+        currentStrategy,
+        constraints: {
+          maxLeverage: Number(currentStrategy?.maxLeverage || 5),
+          maxPositionUsd: Number(currentStrategy?.maxPositionUsd || 10000),
+          riskTolerance: input.riskTolerance,
+        },
+      });
+
+      // Store recommendation
+      const [row] = await db
+        .insert(aiRecommendations)
+        .values({
+          userId,
+          strategyId: input.strategyId || null,
+          type: 'trader_selection',
+          inputData: {
+            traders: topTraders,
+            positions,
+            currentStrategy,
+            constraints: { riskTolerance: input.riskTolerance },
+          },
+          recommendations: recommendation.traders,
+          reasoning: recommendation.overallReasoning,
+          confidence: (
+            recommendation.traders.reduce((sum, t) => sum + t.confidence, 0) /
+            recommendation.traders.length
+          ).toString(),
+          status: 'pending',
+        })
+        .returning();
 
       return {
-        recommendations: filtered.map((rec) => schemas.CopyRecommendation.parse(rec)),
-        userProfile: {
-          riskTolerance,
-          expectedReturn: targetReturn || 0.2,
-          maxDrawdown: maxDrawdown || 0.15,
-        },
-        generatedAt: new Date().toISOString(),
+        id: row.id,
+        traders: recommendation.traders,
+        overallReasoning: recommendation.overallReasoning,
+        riskAssessment: recommendation.riskAssessment,
+        status: row.status,
+        createdAt: row.createdAt,
       };
+    }),
+
+  // Approve a recommendation and apply allocations
+  approveRecommendation: protectedProcedure
+    .input(z.object({ recommendationId: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.user!.userId;
+      const db = getDatabaseConnection().getDatabase();
+
+      const [recommendation] = await db
+        .select()
+        .from(aiRecommendations)
+        .where(
+          and(
+            eq(aiRecommendations.id, input.recommendationId),
+            eq(aiRecommendations.userId, userId),
+          ),
+        )
+        .limit(1);
+
+      if (!recommendation)
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Recommendation not found' });
+      if (recommendation.status !== 'pending')
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Recommendation already reviewed' });
+
+      // Apply recommendations to strategy if strategyId exists
+      if (recommendation.strategyId) {
+        const recs = recommendation.recommendations as any[];
+        for (const rec of recs) {
+          const [existing] = await db
+            .select()
+            .from(copyAllocations)
+            .where(
+              and(
+                eq(copyAllocations.strategyId, recommendation.strategyId),
+                eq(copyAllocations.traderId, rec.traderId),
+              ),
+            )
+            .limit(1);
+
+          if (existing) {
+            await db
+              .update(copyAllocations)
+              .set({ weight: rec.suggestedWeight.toString() })
+              .where(eq(copyAllocations.id, existing.id));
+          } else {
+            await db.insert(copyAllocations).values({
+              strategyId: recommendation.strategyId,
+              traderId: rec.traderId,
+              weight: rec.suggestedWeight.toString(),
+              status: 'active',
+            } as any);
+          }
+        }
+      }
+
+      await db
+        .update(aiRecommendations)
+        .set({ status: 'approved', reviewedAt: new Date() })
+        .where(eq(aiRecommendations.id, input.recommendationId));
+
+      return { success: true, message: 'Recommendation approved and applied' };
+    }),
+
+  // Reject a recommendation
+  rejectRecommendation: protectedProcedure
+    .input(z.object({ recommendationId: z.string(), notes: z.string().optional() }))
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.user!.userId;
+      const db = getDatabaseConnection().getDatabase();
+
+      const [recommendation] = await db
+        .select()
+        .from(aiRecommendations)
+        .where(
+          and(
+            eq(aiRecommendations.id, input.recommendationId),
+            eq(aiRecommendations.userId, userId),
+          ),
+        )
+        .limit(1);
+
+      if (!recommendation)
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Recommendation not found' });
+      if (recommendation.status !== 'pending')
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Recommendation already reviewed' });
+
+      await db
+        .update(aiRecommendations)
+        .set({ status: 'rejected', reviewedAt: new Date(), reviewNotes: input.notes })
+        .where(eq(aiRecommendations.id, input.recommendationId));
+
+      return { success: true, message: 'Recommendation rejected' };
     }),
 
   // Start/stop copy strategy
