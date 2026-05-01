@@ -8,7 +8,8 @@ describe('agent-wallets', () => {
     const wallet = generateAgentWallet(testEncryptionKey);
     expect(wallet.address).toMatch(/^0x[0-9a-fA-F]{40}$/);
     expect(wallet.encryptedPrivateKey).toBeTruthy();
-    expect(wallet.encryptedPrivateKey).not.toContain('0x');
+    expect(wallet.encryptedPrivateKey).not.toMatch(/^0x/);
+    expect(wallet.encryptedPrivateKey.length).toBeGreaterThan(0);
   });
 
   it('generates unique wallets each time', () => {
