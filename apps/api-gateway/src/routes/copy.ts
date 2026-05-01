@@ -444,33 +444,41 @@ export const copyRouter = t.router({
       }
 
       // Call AI service
-      const recommendation = await getAiRecommendations({
-        traders: topTraders.map((t) => ({
-          ...t,
-          pnl7d: Number(t.pnl7d || 0),
-          pnl30d: Number(t.pnl30d || 0),
-          winrate: Number(t.winrate || 0),
-          totalTrades: t.totalTrades || 0,
-          equityUsd: Number(t.equityUsd || 0),
-          maxDrawdown: Number(t.maxDrawdown || 0),
-          sharpeRatio: Number(t.sharpeRatio || 0),
-          isActive: true,
-        })),
-        positions: positions.map((p) => ({
-          traderId: p.traderId,
-          symbol: p.symbol,
-          side: p.side,
-          quantity: Number(p.quantity),
-          positionValueUsd: Number(p.positionValueUsd),
-          unrealizedPnl: Number(p.unrealizedPnl || 0),
-        })),
-        currentStrategy,
-        constraints: {
-          maxLeverage: Number(currentStrategy?.maxLeverage || 5),
-          maxPositionUsd: Number(currentStrategy?.maxPositionUsd || 10000),
-          riskTolerance: input.riskTolerance,
-        },
-      });
+      let recommendation;
+      try {
+        recommendation = await getAiRecommendations({
+          traders: topTraders.map((t) => ({
+            ...t,
+            pnl7d: Number(t.pnl7d || 0),
+            pnl30d: Number(t.pnl30d || 0),
+            winrate: Number(t.winrate || 0),
+            totalTrades: t.totalTrades || 0,
+            equityUsd: Number(t.equityUsd || 0),
+            maxDrawdown: Number(t.maxDrawdown || 0),
+            sharpeRatio: Number(t.sharpeRatio || 0),
+            isActive: true,
+          })),
+          positions: positions.map((p) => ({
+            traderId: p.traderId,
+            symbol: p.symbol,
+            side: p.side,
+            quantity: Number(p.quantity),
+            positionValueUsd: Number(p.positionValueUsd),
+            unrealizedPnl: Number(p.unrealizedPnl || 0),
+          })),
+          currentStrategy,
+          constraints: {
+            maxLeverage: Number(currentStrategy?.maxLeverage || 5),
+            maxPositionUsd: Number(currentStrategy?.maxPositionUsd || 10000),
+            riskTolerance: input.riskTolerance,
+          },
+        });
+      } catch (error) {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: `AI recommendation failed: ${error instanceof Error ? error.message : 'unknown error'}`,
+        });
+      }
 
       // Store recommendation
       const [row] = await db
@@ -487,10 +495,9 @@ export const copyRouter = t.router({
           },
           recommendations: recommendation.traders,
           reasoning: recommendation.overallReasoning,
-          confidence: (
-            recommendation.traders.reduce((sum, t) => sum + t.confidence, 0) /
-            recommendation.traders.length
-          ).toString(),
+          confidence: recommendation.traders.length > 0
+            ? (recommendation.traders.reduce((sum, t) => sum + t.confidence, 0) / recommendation.traders.length).toString()
+            : '0',
           status: 'pending',
         })
         .returning();
@@ -528,41 +535,42 @@ export const copyRouter = t.router({
       if (recommendation.status !== 'pending')
         throw new TRPCError({ code: 'BAD_REQUEST', message: 'Recommendation already reviewed' });
 
-      // Apply recommendations to strategy if strategyId exists
-      if (recommendation.strategyId) {
-        const recs = recommendation.recommendations as any[];
-        for (const rec of recs) {
-          const [existing] = await db
-            .select()
-            .from(copyAllocations)
-            .where(
-              and(
-                eq(copyAllocations.strategyId, recommendation.strategyId),
-                eq(copyAllocations.traderId, rec.traderId),
-              ),
-            )
-            .limit(1);
+      await db.transaction(async (tx) => {
+        if (recommendation.strategyId) {
+          const recs = recommendation.recommendations as any[];
+          for (const rec of recs) {
+            const [existing] = await tx
+              .select()
+              .from(copyAllocations)
+              .where(
+                and(
+                  eq(copyAllocations.strategyId, recommendation.strategyId),
+                  eq(copyAllocations.traderId, rec.traderId),
+                ),
+              )
+              .limit(1);
 
-          if (existing) {
-            await db
-              .update(copyAllocations)
-              .set({ weight: rec.suggestedWeight.toString() })
-              .where(eq(copyAllocations.id, existing.id));
-          } else {
-            await db.insert(copyAllocations).values({
-              strategyId: recommendation.strategyId,
-              traderId: rec.traderId,
-              weight: rec.suggestedWeight.toString(),
-              status: 'active',
-            } as any);
+            if (existing) {
+              await tx
+                .update(copyAllocations)
+                .set({ weight: rec.suggestedWeight.toString() })
+                .where(eq(copyAllocations.id, existing.id));
+            } else {
+              await tx.insert(copyAllocations).values({
+                strategyId: recommendation.strategyId,
+                traderId: rec.traderId,
+                weight: rec.suggestedWeight.toString(),
+                status: 'active',
+              } as any);
+            }
           }
         }
-      }
 
-      await db
-        .update(aiRecommendations)
-        .set({ status: 'approved', reviewedAt: new Date() })
-        .where(eq(aiRecommendations.id, input.recommendationId));
+        await tx
+          .update(aiRecommendations)
+          .set({ status: 'approved', reviewedAt: new Date() })
+          .where(eq(aiRecommendations.id, input.recommendationId));
+      });
 
       return { success: true, message: 'Recommendation approved and applied' };
     }),
