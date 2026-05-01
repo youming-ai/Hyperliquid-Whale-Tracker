@@ -11,13 +11,12 @@ describe('safety-controls', () => {
       expect(result.allowed).toBe(true);
     });
 
-    it('blocks order when at limit', () => {
+    it('allows order when at limit', () => {
       const result = checkDailyLossLimit({
         dailyPnl: -1000,
         maxDailyLossUsd: 1000,
       });
-      expect(result.allowed).toBe(false);
-      expect(result.reason).toContain('Daily loss limit');
+      expect(result.allowed).toBe(true);
     });
 
     it('blocks order when over limit', () => {
@@ -41,6 +40,15 @@ describe('safety-controls', () => {
     it('allows order under max size', () => {
       const result = checkMaxOrderSize({
         quantity: 0.001,
+        markPrice: 50000,
+        maxOrderUsd: 500,
+      });
+      expect(result.allowed).toBe(true);
+    });
+
+    it('allows order at exact max size', () => {
+      const result = checkMaxOrderSize({
+        quantity: 0.01,
         markPrice: 50000,
         maxOrderUsd: 500,
       });

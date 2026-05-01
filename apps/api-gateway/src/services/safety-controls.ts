@@ -7,7 +7,7 @@ export function checkDailyLossLimit(input: {
   dailyPnl: number;
   maxDailyLossUsd: number;
 }): SafetyCheckResult {
-  if (input.dailyPnl <= -input.maxDailyLossUsd) {
+  if (input.dailyPnl < -input.maxDailyLossUsd) {
     return {
       allowed: false,
       reason: `Daily loss limit reached: $${Math.abs(input.dailyPnl).toFixed(2)} / $${input.maxDailyLossUsd}`,
