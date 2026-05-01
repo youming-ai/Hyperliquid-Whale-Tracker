@@ -1,6 +1,6 @@
-import { useQuery } from '@tanstack/react-query';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useState } from 'react';
+import { trpc } from '@/lib/api/trpc';
 
 export const Route = createFileRoute('/strategies/new')({
   component: NewStrategyPage,
@@ -33,50 +33,24 @@ interface StrategyFormData {
   allocations: Allocation[];
 }
 
-// Mock top traders for recommendations
-const mockTopTraders = [
-  {
-    traderId: '0x1234...5678',
-    name: 'BTC Whale Alpha',
-    pnl7d: 12500,
-    winRate: 68.5,
-    trades: 45,
-  },
-  {
-    traderId: '0xabcd...ef01',
-    name: 'ETH Scalper Pro',
-    pnl7d: 8900,
-    winRate: 72.1,
-    trades: 82,
-  },
-  {
-    traderId: '0x5678...9abc',
-    name: 'Stable Returns Fund',
-    pnl7d: 3200,
-    winRate: 85.2,
-    trades: 28,
-  },
-  {
-    traderId: '0x9abc...def0',
-    name: 'DeFi Yield Master',
-    pnl7d: 6700,
-    winRate: 64.8,
-    trades: 56,
-  },
-  {
-    traderId: '0xfedc...ba98',
-    name: 'Perp Trader Elite',
-    pnl7d: 15200,
-    winRate: 59.3,
-    trades: 94,
-  },
-];
-
 function NewStrategyPage() {
   const navigate = useNavigate();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showTraderSearch, setShowTraderSearch] = useState(false);
 
+  // @ts-expect-error - AppRouter is any type until proper type generation is set up
+  const { data: topTraders = [] } = trpc.traders.list.useQuery({
+    limit: 20,
+    sortBy: 'pnl',
+    sortOrder: 'desc',
+    timeframe: '7d',
+    isActive: true,
+  });
+
+  // @ts-expect-error - AppRouter is any type until proper type generation is set up
+  const createStrategy = trpc.copy.createStrategy.useMutation({
+    onSuccess: () => navigate({ to: '/strategies' }),
+  });
   const [formData, setFormData] = useState<StrategyFormData>({
     name: '',
     description: '',
@@ -93,15 +67,6 @@ function NewStrategyPage() {
       rebalanceThresholdBps: 50,
     },
     allocations: [],
-  });
-
-  // Fetch top traders for recommendations
-  const { data: topTraders } = useQuery({
-    queryKey: ['traders', 'top'],
-    queryFn: async () => {
-      await new Promise((resolve) => setTimeout(resolve, 200));
-      return mockTopTraders;
-    },
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -122,11 +87,14 @@ function NewStrategyPage() {
       }
 
       console.log('Creating strategy:', formData);
-      // In real app, call API here:
-      // await trpc.copy.createStrategy.mutate(formData);
-
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      navigate({ to: '/strategies' });
+      await createStrategy.mutateAsync({
+        name: formData.name,
+        description: formData.description || undefined,
+        mode: formData.mode,
+        riskParams: formData.riskParams,
+        settings: formData.settings,
+        allocations: formData.allocations,
+      });
     } catch (error) {
       console.error('Error creating strategy:', error);
       alert('Failed to create strategy. Please try again.');
@@ -259,13 +227,13 @@ function NewStrategyPage() {
             <div className="mb-4 p-4 rounded-lg bg-[hsl(var(--muted)/0.3)] border border-[hsl(var(--border))]">
               <h3 className="font-medium mb-3">Select Traders to Copy</h3>
               <div className="space-y-2">
-                {topTraders?.map((trader) => (
+                {topTraders?.map((trader: any) => (
                   <div
-                    key={trader.traderId}
+                    key={trader.address}
                     className="flex items-center justify-between p-3 rounded-lg bg-[hsl(var(--card))] border border-[hsl(var(--border))]"
                   >
                     <div className="flex-1">
-                      <p className="font-medium">{trader.name}</p>
+                      <p className="font-mono text-sm">{trader.address}</p>
                       <p className="text-xs opacity-60 font-mono">{trader.traderId}</p>
                     </div>
                     <div className="flex items-center gap-4 text-sm">

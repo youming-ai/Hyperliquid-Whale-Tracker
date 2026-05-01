@@ -11,14 +11,16 @@
 
 import { createPostgresConnection, traderStats, traderTrades } from '@hyperdash/database';
 import { and, eq } from 'drizzle-orm';
-import { fetchTraderData, fillToTraderTradeRow } from '../services/hyperliquid';
+import { LEADERBOARD_TRADER_SEEDS } from '../config/leaderboard-traders';
+import {
+  assetPositionToTraderPositionRow,
+  fetchTraderData,
+  fillToTraderTradeRow,
+  getAllMids,
+} from '../services/hyperliquid';
+import { replaceTraderPositions } from '../services/trader-positions';
 
-// Known whale/active trader addresses on Hyperliquid
-// These can be expanded over time or fetched from external sources
-const KNOWN_WHALE_ADDRESSES: string[] = [
-  // Add known Hyperliquid whale addresses here
-  // Example: "0x1234567890abcdef1234567890abcdef12345678"
-];
+const KNOWN_WHALE_ADDRESSES = LEADERBOARD_TRADER_SEEDS.map((seed) => seed.address);
 
 // Configuration
 const INGESTION_CONFIG = {
@@ -41,6 +43,7 @@ interface IngestionResult {
 async function ingestTraderAddress(
   address: string,
   db: ReturnType<ReturnType<typeof createPostgresConnection>['getDatabase']>,
+  mids: Record<string, string>,
 ): Promise<{ success: boolean; error?: string; updated: boolean }> {
   const maxRetries = INGESTION_CONFIG.retryAttempts;
 
@@ -57,7 +60,7 @@ async function ingestTraderAddress(
         };
       }
 
-      const { stats, fills } = traderData;
+      const { stats, fills, state } = traderData;
 
       if (!stats) {
         return { success: false, error: 'No stats available', updated: false };
@@ -134,6 +137,26 @@ async function ingestTraderAddress(
         }
       }
 
+      // Persist current trader positions after stats and trades are written.
+      try {
+        if (state) {
+          const positionRows = state.assetPositions
+            .filter((assetPosition) => Number(assetPosition.position.szi) !== 0)
+            .map((assetPosition) =>
+              assetPositionToTraderPositionRow(
+                assetPosition,
+                traderId,
+                address,
+                mids[assetPosition.position.coin] ?? assetPosition.position.entryPx,
+              ),
+            );
+
+          await replaceTraderPositions(db as any, traderId, positionRows);
+        }
+      } catch (error) {
+        console.error(`Failed to persist positions for ${address}:`, error);
+      }
+
       return { success: true, updated: !!existingTrader };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
@@ -177,12 +200,15 @@ export async function ingestTraderAddresses(
   };
 
   try {
+    // Fetch market mid-prices once for this ingestion run.
+    const mids = await getAllMids().catch(() => ({} as Record<string, string>));
+
     // Process addresses in batches
     for (let i = 0; i < addresses.length; i += concurrency) {
       const batch = addresses.slice(i, i + concurrency);
 
       const batchResults = await Promise.allSettled(
-        batch.map((address) => ingestTraderAddress(address.trim(), db)),
+        batch.map((address) => ingestTraderAddress(address.trim(), db, mids)),
       );
 
       for (let j = 0; j < batchResults.length; j++) {

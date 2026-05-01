@@ -99,6 +99,35 @@ async function runMigrations() {
     `;
     console.log('✅ trader_trades table created');
 
+    // Create trader_positions table - stores current trader positions
+    await client`
+      CREATE TABLE IF NOT EXISTS trader_positions (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        trader_id UUID NOT NULL REFERENCES trader_stats(trader_id) ON DELETE CASCADE,
+        trader_address TEXT NOT NULL,
+        symbol TEXT NOT NULL,
+        side TEXT NOT NULL,
+        quantity NUMERIC(20, 8) NOT NULL,
+        entry_price NUMERIC(20, 8) NOT NULL,
+        mark_price NUMERIC(20, 8) NOT NULL,
+        position_value_usd NUMERIC(20, 2) NOT NULL,
+        unrealized_pnl NUMERIC(20, 2) DEFAULT '0',
+        margin_used NUMERIC(20, 2) DEFAULT '0',
+        leverage NUMERIC(8, 2) DEFAULT '1',
+        liquidation_price NUMERIC(20, 8),
+        metadata JSONB DEFAULT '{}',
+        last_updated_at TIMESTAMP DEFAULT NOW(),
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+    `;
+    console.log('✅ trader_positions table created');
+
+    // Add encrypted_private_key to agent_wallets if not exists
+    await client`
+      ALTER TABLE agent_wallets ADD COLUMN IF NOT EXISTS encrypted_private_key TEXT;
+    `;
+    console.log('✅ agent_wallets.encrypted_private_key column added');
+
     // Create indexes
     console.log('Creating indexes...');
 
@@ -117,6 +146,11 @@ async function runMigrations() {
     await client`CREATE INDEX IF NOT EXISTS idx_trader_trades_opened_at ON trader_trades(opened_at DESC);`;
     await client`CREATE INDEX IF NOT EXISTS idx_trader_trades_closed_at ON trader_trades(closed_at DESC);`;
     await client`CREATE INDEX IF NOT EXISTS idx_trader_trades_side ON trader_trades(side);`;
+
+    await client`CREATE INDEX IF NOT EXISTS idx_trader_positions_trader_id ON trader_positions(trader_id);`;
+    await client`CREATE INDEX IF NOT EXISTS idx_trader_positions_address ON trader_positions(trader_address);`;
+    await client`CREATE INDEX IF NOT EXISTS idx_trader_positions_symbol ON trader_positions(symbol);`;
+    await client`CREATE UNIQUE INDEX IF NOT EXISTS idx_trader_positions_unique ON trader_positions(trader_id, symbol, side);`;
 
     // Create trigger for updated_at
     await client.unsafe(`

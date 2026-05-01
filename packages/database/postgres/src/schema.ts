@@ -7,6 +7,7 @@ import {
   pgTable,
   text,
   timestamp,
+  uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
 
@@ -123,11 +124,50 @@ export const traderTrades = pgTable(
   }),
 );
 
+export const traderPositions = pgTable(
+  'trader_positions',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    traderId: uuid('trader_id')
+      .notNull()
+      .references(() => traderStats.traderId, { onDelete: 'cascade' }),
+    traderAddress: text('trader_address').notNull(),
+    symbol: text('symbol').notNull(),
+    side: text('side').notNull(),
+    quantity: decimal('quantity', { precision: 20, scale: 8 }).notNull(),
+    entryPrice: decimal('entry_price', { precision: 20, scale: 8 }).notNull(),
+    markPrice: decimal('mark_price', { precision: 20, scale: 8 }).notNull(),
+    positionValueUsd: decimal('position_value_usd', {
+      precision: 20,
+      scale: 2,
+    }).notNull(),
+    unrealizedPnl: decimal('unrealized_pnl', { precision: 20, scale: 2 }).default('0'),
+    marginUsed: decimal('margin_used', { precision: 20, scale: 2 }).default('0'),
+    leverage: decimal('leverage', { precision: 8, scale: 2 }).default('1'),
+    liquidationPrice: decimal('liquidation_price', { precision: 20, scale: 8 }),
+    metadata: jsonb('metadata').default('{}'),
+    lastUpdatedAt: timestamp('last_updated_at').defaultNow(),
+    createdAt: timestamp('created_at').defaultNow(),
+  },
+  (table) => ({
+    traderIdIdx: index('idx_trader_positions_trader_id').on(table.traderId),
+    addressIdx: index('idx_trader_positions_address').on(table.traderAddress),
+    symbolIdx: index('idx_trader_positions_symbol').on(table.symbol),
+    uniquePosition: uniqueIndex('idx_trader_positions_unique').on(
+      table.traderId,
+      table.symbol,
+      table.side,
+    ),
+  }),
+);
+
 // Types
 export type TraderStats = typeof traderStats.$inferSelect;
 export type NewTraderStats = typeof traderStats.$inferInsert;
 export type TraderTrades = typeof traderTrades.$inferSelect;
 export type NewTraderTrades = typeof traderTrades.$inferInsert;
+export type TraderPosition = typeof traderPositions.$inferSelect;
+export type NewTraderPosition = typeof traderPositions.$inferInsert;
 
 // ============================================================================
 // COPY TRADING TABLES
@@ -177,6 +217,7 @@ export const agentWallets = pgTable(
 
     // Permissions
     permissions: jsonb('permissions').default('{ "trade": true, "withdraw": false }'),
+    encryptedPrivateKey: text('encrypted_private_key'),
 
     // Metadata
     metadata: jsonb('metadata').default('{}'),

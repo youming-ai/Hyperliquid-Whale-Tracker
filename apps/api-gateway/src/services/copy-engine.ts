@@ -10,8 +10,13 @@
  */
 
 import * as schema from '@hyperdash/database';
-import { and, desc, eq, sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
+import { calculateCopyTargets } from './copy-targets';
 import { getDatabaseConnection } from '../services/connection';
+import { privateKeyToAccount } from 'viem/accounts';
+import { decryptKey, getEncryptionKey } from './key-management';
+import { buildMarketOrder, placeOrder } from './exchange';
+import { checkDailyLossLimit, checkMaxOrderSize } from './safety-controls';
 
 export interface ExecutionConfig {
   executionInterval: number; // seconds between execution cycles
@@ -44,6 +49,7 @@ export class CopyTradingEngine {
   private isRunning = false;
   private intervalId?: NodeJS.Timeout;
   private db = getDatabaseConnection().getDatabase();
+  private nonceCounter = 0;
 
   constructor(config: ExecutionConfig = {}) {
     this.config = {
@@ -212,7 +218,11 @@ export class CopyTradingEngine {
     const targetPositions = await this.calculateTargetPositions(strategy, allocations);
 
     // Calculate position deltas
-    const deltas = this.calculatePositionDeltas(currentPositions, targetPositions);
+    const deltas = this.calculatePositionDeltas(
+      currentPositions,
+      targetPositions,
+      Number(strategy.minOrderUsd || 5),
+    );
 
     // Execute trades if needed
     if (deltas.length > 0) {
@@ -254,7 +264,7 @@ export class CopyTradingEngine {
 
     const result = new Map();
     for (const pos of positions) {
-      result.set(pos.symbol, {
+      result.set(`${pos.symbol}:${pos.side}`, {
         quantity: Number(pos.quantity),
         side: pos.side as 'long' | 'short',
         entryPrice: Number(pos.entryPrice),
@@ -271,16 +281,53 @@ export class CopyTradingEngine {
     strategy: any,
     allocations: any[],
   ): Promise<Map<string, { quantity: number; side: string }>> {
+    const traderIds = allocations.map((allocation) => allocation.traderId);
+
+    if (traderIds.length === 0) return new Map();
+
+    const traders = await this.db
+      .select({
+        traderId: schema.traderStats.traderId,
+        equityUsd: schema.traderStats.equityUsd,
+      })
+      .from(schema.traderStats)
+      .where(sql`${schema.traderStats.traderId} = ANY(${traderIds})`);
+
+    const sourcePositions = await this.db
+      .select()
+      .from(schema.traderPositions)
+      .where(sql`${schema.traderPositions.traderId} = ANY(${traderIds})`);
+
+    const targets = calculateCopyTargets({
+      strategy: {
+        maxPositionUsd: Number(strategy.maxPositionUsd || 10_000),
+        maxLeverage: Number(strategy.maxLeverage || 3),
+        minOrderUsd: Number(strategy.minOrderUsd || 5),
+      },
+      allocations: allocations.map((allocation) => ({
+        traderId: allocation.traderId,
+        weight: Number(allocation.weight),
+      })),
+      traders: traders.map((trader) => ({
+        traderId: trader.traderId,
+        equityUsd: Number(trader.equityUsd || 0),
+      })),
+      sourcePositions: sourcePositions.map((position) => ({
+        traderId: position.traderId,
+        symbol: position.symbol,
+        side: position.side,
+        quantity: Number(position.quantity),
+        markPrice: Number(position.markPrice),
+        positionValueUsd: Number(position.positionValueUsd),
+      })),
+    });
+
     const targetPositions = new Map<string, { quantity: number; side: string }>();
-    const userCapital = Number(strategy.maxPositionUsd || 10000); // Default capital
-
-    for (const alloc of allocations) {
-      const weight = Number(alloc.weight);
-      const capital = userCapital * weight;
-
-      // Get trader's current positions from trader_trades
-      // This is simplified - in production would need to aggregate from trader_trades
-      // For now, we'll use placeholder logic
+    for (const target of targets) {
+      targetPositions.set(`${target.symbol}:${target.side}`, {
+        quantity: target.targetQuantity,
+        side: target.side,
+      });
     }
 
     return targetPositions;
@@ -292,9 +339,9 @@ export class CopyTradingEngine {
   private calculatePositionDeltas(
     current: Map<string, { quantity: number; side: string }>,
     target: Map<string, { quantity: number; side: string }>,
+    minOrderSize: number,
   ): PositionDelta[] {
     const deltas: PositionDelta[] = [];
-    const minOrderSize = Number(strategy?.minOrderUsd || 5);
 
     // All symbols involved
     const allSymbols = new Set([...current.keys(), ...target.keys()]);
@@ -305,7 +352,7 @@ export class CopyTradingEngine {
 
       const currentQty = curr?.quantity || 0;
       const targetQty = targ?.quantity || 0;
-      const side = targ?.side || curr?.side || 'long';
+      const side = (targ?.side || curr?.side || 'long') as 'long' | 'short';
 
       const delta = targetQty - currentQty;
 
@@ -329,25 +376,163 @@ export class CopyTradingEngine {
    * Execute trades to achieve target positions
    */
   private async executeTrades(strategy: any, deltas: PositionDelta[]): Promise<void> {
-    for (const delta of deltas) {
-      // Create copy order record
-      await this.db.insert(schema.copyOrders).values({
-        userId: strategy.userId,
-        strategyId: strategy.id,
-        agentWalletId: strategy.agentWalletId,
-        exchange: 'hyperliquid',
-        symbol: delta.symbol,
-        side: delta.action,
-        orderType: 'market',
-        quantity: Math.abs(delta.delta).toString(),
-        status: 'pending',
-      } as any);
+    // Get agent wallet for this strategy
+    const [agentWallet] = await this.db
+      .select()
+      .from(schema.agentWallets)
+      .where(eq(schema.agentWallets.id, strategy.agentWalletId))
+      .limit(1) as any[];
 
-      // TODO: Integrate with Hyperliquid API to execute actual trades
-      console.log(
-        `[CopyEngine] Would execute ${delta.action} ${Math.abs(delta.delta)} ${delta.symbol} for strategy ${strategy.id}`,
-      );
+    if (!agentWallet?.encryptedPrivateKey) {
+      console.error(`[CopyEngine] No agent wallet with private key for strategy ${strategy.id}`);
+      return;
     }
+
+    // Safety checks
+    const dailyPnl = await this.getDailyPnl(strategy.id);
+    const lossCheck = checkDailyLossLimit({
+      dailyPnl,
+      maxDailyLossUsd: Number(strategy.maxDailyLossUsd || 1000),
+    });
+    if (!lossCheck.allowed) {
+      console.warn(`[CopyEngine] ${lossCheck.reason} for strategy ${strategy.id}`);
+      await this.db
+        .update(schema.copyStrategies)
+        .set({ status: 'error' })
+        .where(eq(schema.copyStrategies.id, strategy.id));
+      return;
+    }
+
+    // Decrypt private key
+    let account;
+    try {
+      const encryptionKey = getEncryptionKey();
+      const privateKey = decryptKey(agentWallet.encryptedPrivateKey, encryptionKey);
+      account = privateKeyToAccount(privateKey as `0x${string}`);
+    } catch (error) {
+      console.error(`[CopyEngine] Failed to decrypt private key:`, error);
+      return;
+    }
+
+    // Get meta for asset indices and mids for prices
+    let meta: any;
+    let mids: Record<string, number>;
+    try {
+      [meta, mids] = await Promise.all([this.getMeta(), this.getMids()]);
+    } catch (error) {
+      console.error(`[CopyEngine] Failed to fetch meta/mids:`, error);
+      return;
+    }
+
+    for (const delta of deltas) {
+      const midPrice = mids[delta.symbol];
+      if (!midPrice || midPrice <= 0) {
+        console.error(`[CopyEngine] No price available for ${delta.symbol}`);
+        continue;
+      }
+
+      const sizeCheck = checkMaxOrderSize({
+        quantity: Math.abs(delta.delta),
+        markPrice: midPrice,
+        maxOrderUsd: Number(strategy.maxOrderUsd || 500),
+      });
+      if (!sizeCheck.allowed) {
+        console.warn(`[CopyEngine] ${sizeCheck.reason}`);
+        continue;
+      }
+
+      const assetIndex = meta.universe.findIndex((a: any) => a.name === delta.symbol);
+      if (assetIndex === -1) {
+        console.error(`[CopyEngine] Asset ${delta.symbol} not found in meta`);
+        continue;
+      }
+
+      const order = buildMarketOrder({
+        assetIndex,
+        isBuy: delta.action === 'buy',
+        size: Math.abs(delta.delta).toString(),
+        midPrice,
+        slippageBps: Number(strategy.slippageBps || 10),
+      });
+
+      // Insert order record
+      const [orderRow] = await this.db
+        .insert(schema.copyOrders)
+        .values({
+          userId: strategy.userId,
+          strategyId: strategy.id,
+          agentWalletId: strategy.agentWalletId,
+          exchange: 'hyperliquid',
+          symbol: delta.symbol,
+          side: delta.action,
+          orderType: 'market',
+          quantity: Math.abs(delta.delta).toString(),
+          status: 'submitted',
+          submittedAt: new Date(),
+        } as any)
+        .returning();
+
+      try {
+        const nonce = Date.now() * 1000 + (this.nonceCounter++ % 1000);
+        const response = await placeOrder(account, [order], nonce);
+
+        if (response.status === 'err') {
+          await this.db
+            .update(schema.copyOrders)
+            .set({ status: 'failed', errorMessage: response.error })
+            .where(eq(schema.copyOrders.id, orderRow.id));
+          console.error(`[CopyEngine] Order failed: ${response.error}`);
+        } else {
+          console.log(`[CopyEngine] Order submitted for ${delta.symbol}`);
+        }
+      } catch (error) {
+        await this.db
+          .update(schema.copyOrders)
+          .set({ status: 'failed', errorMessage: String(error) })
+          .where(eq(schema.copyOrders.id, orderRow.id));
+        console.error(`[CopyEngine] Order execution error:`, error);
+      }
+    }
+  }
+
+  private async getDailyPnl(strategyId: string): Promise<number> {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const orders = await this.db
+      .select({ pnl: schema.copyOrders.pnl })
+      .from(schema.copyOrders)
+      .where(
+        and(
+          eq(schema.copyOrders.strategyId, strategyId),
+          sql`${schema.copyOrders.createdAt} >= ${today}`,
+        ),
+      );
+
+    return orders.reduce((sum, o) => sum + Number(o.pnl || 0), 0);
+  }
+
+  private async getMeta(): Promise<any> {
+    const res = await fetch(process.env.HYPERLIQUID_API_URL ?? 'https://api.hyperliquid.xyz/info', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'meta' }),
+    });
+    return res.json();
+  }
+
+  private async getMids(): Promise<Record<string, number>> {
+    const res = await fetch(process.env.HYPERLIQUID_API_URL ?? 'https://api.hyperliquid.xyz/info', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'allMids' }),
+    });
+    const data = await res.json();
+    const result: Record<string, number> = {};
+    for (const [key, value] of Object.entries(data)) {
+      result[key] = Number(value);
+    }
+    return result;
   }
 
   /**

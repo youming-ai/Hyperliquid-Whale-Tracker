@@ -14,9 +14,9 @@ export const tradersRouter = t.router({
       z.object({
         limit: z.number().min(1).max(100).default(20),
         offset: z.number().min(0).default(0),
-        sortBy: z.enum(['pnl', 'winrate', 'trades', 'sharpe']).default('pnl'),
+        sortBy: z.enum(['pnl', 'winrate', 'winRate', 'trades', 'sharpe', 'equity']).default('pnl'),
         sortOrder: z.enum(['asc', 'desc']).default('desc'),
-        timeframe: z.enum(['7d', '30d', 'all']).default('7d'),
+        timeframe: z.enum(['7d', '30d', '90d', 'all']).default('7d'),
         minPnl: z.number().optional(),
         minWinrate: z.number().optional(),
         minTrades: z.number().optional(),
@@ -27,6 +27,7 @@ export const tradersRouter = t.router({
       const traders = await traderService.getTraders(input);
 
       return traders.map((t) => ({
+        traderId: t.traderId,
         rank: t.rank,
         address: t.address,
         pnl7d: Number(t.pnl7d),
@@ -182,6 +183,32 @@ export const tradersRouter = t.router({
         isActive: t.lastTradeAt
           ? new Date(t.lastTradeAt) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
           : false,
+      }));
+    }),
+
+  positions: publicProcedure
+    .input(
+      z.object({
+        address: z.string().length(42),
+      }),
+    )
+    .query(async ({ input }) => {
+      const positions = await traderService.getTraderPositions(input.address);
+
+      return positions.map((position) => ({
+        id: position.id,
+        traderId: position.traderId,
+        symbol: position.symbol,
+        side: position.side,
+        quantity: Number(position.quantity),
+        entryPrice: Number(position.entryPrice),
+        markPrice: Number(position.markPrice),
+        positionValueUsd: Number(position.positionValueUsd),
+        unrealizedPnl: Number(position.unrealizedPnl || 0),
+        marginUsed: Number(position.marginUsed || 0),
+        leverage: Number(position.leverage || 1),
+        liquidationPrice: position.liquidationPrice ? Number(position.liquidationPrice) : null,
+        lastUpdatedAt: position.lastUpdatedAt?.toISOString() ?? null,
       }));
     }),
 

@@ -239,6 +239,54 @@ export interface TraderStatsSummary {
   lastTradeAt: string | null;
 }
 
+export interface TraderPositionRow {
+  traderId: string;
+  traderAddress: string;
+  symbol: string;
+  side: 'long' | 'short';
+  quantity: string;
+  entryPrice: string;
+  markPrice: string;
+  positionValueUsd: string;
+  unrealizedPnl: string;
+  marginUsed: string;
+  leverage: string;
+  liquidationPrice: string | null;
+  metadata: Record<string, unknown>;
+  lastUpdatedAt: Date;
+}
+
+export function assetPositionToTraderPositionRow(
+  assetPosition: HyperliquidAssetPosition,
+  traderId: string,
+  traderAddress: string,
+  markPrice: string,
+): TraderPositionRow {
+  const position = assetPosition.position;
+  const side: 'long' | 'short' = position.szi.startsWith('-') ? 'short' : 'long';
+  const quantity = position.szi.replace(/^[+-]/, '');
+
+  return {
+    traderId,
+    traderAddress,
+    symbol: position.coin,
+    side,
+    quantity,
+    entryPrice: position.entryPx,
+    markPrice,
+    positionValueUsd: position.positionValue,
+    unrealizedPnl: position.unrealizedPnl,
+    marginUsed: position.marginUsed,
+    leverage: String(position.leverage.value),
+    liquidationPrice: position.liquidationPx,
+    metadata: {
+      marginMode: position.leverage.type,
+      returnOnEquity: position.returnOnEquity,
+    },
+    lastUpdatedAt: new Date(),
+  };
+}
+
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 /**
@@ -382,7 +430,7 @@ export function fillToTraderTradeRow(
  */
 export async function fetchTraderData(
   address: string,
-): Promise<{ stats: TraderStatsSummary; fills: HyperliquidFill[] } | null> {
+): Promise<{ stats: TraderStatsSummary; fills: HyperliquidFill[]; state: HyperliquidClearinghouseState | null } | null> {
   const [fills, state] = await Promise.all([
     getUserFills(address),
     // A brand-new or non-perp address may 404 on clearinghouseState; that's
@@ -396,5 +444,5 @@ export async function fetchTraderData(
   const stats = calculateTraderStats(fills, state, address);
   if (!stats) return null;
 
-  return { stats, fills };
+  return { stats, fills, state };
 }

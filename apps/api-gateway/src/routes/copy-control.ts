@@ -5,8 +5,12 @@
  */
 
 import { protectedProcedure, t } from '@hyperdash/contracts';
+import { copyStrategies } from '@hyperdash/database';
+import { and, eq } from 'drizzle-orm';
+import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 import { getCopyTradingEngine } from '../services/copy-engine';
+import { getDatabaseConnection } from '../services/connection';
 
 /**
  * Control Router for Copy Trading Engine Administration
@@ -63,4 +67,27 @@ export const copyControlRouter = t.router({
       activeStrategies: status.activeStrategies,
     };
   }),
+
+  // Kill switch - immediately terminate a strategy
+  killStrategy: protectedProcedure
+    .input(z.object({ strategyId: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.user!.userId;
+      const db = getDatabaseConnection().getDatabase();
+
+      const [strategy] = await db
+        .select()
+        .from(copyStrategies)
+        .where(and(eq(copyStrategies.id, input.strategyId), eq(copyStrategies.userId, userId)))
+        .limit(1);
+
+      if (!strategy) throw new TRPCError({ code: 'NOT_FOUND', message: 'Strategy not found' });
+
+      await db
+        .update(copyStrategies)
+        .set({ status: 'terminated' })
+        .where(eq(copyStrategies.id, input.strategyId));
+
+      return { success: true, message: 'Strategy terminated' };
+    }),
 });
