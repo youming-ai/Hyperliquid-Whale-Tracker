@@ -122,6 +122,12 @@ async function runMigrations() {
     `;
     console.log('✅ trader_positions table created');
 
+    // Add encrypted_private_key to agent_wallets if not exists
+    await client`
+      ALTER TABLE agent_wallets ADD COLUMN IF NOT EXISTS encrypted_private_key TEXT;
+    `;
+    console.log('✅ agent_wallets.encrypted_private_key column added');
+
     // Create indexes
     console.log('Creating indexes...');
 

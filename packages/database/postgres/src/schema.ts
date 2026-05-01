@@ -217,6 +217,7 @@ export const agentWallets = pgTable(
 
     // Permissions
     permissions: jsonb('permissions').default('{ "trade": true, "withdraw": false }'),
+    encryptedPrivateKey: text('encrypted_private_key'),
 
     // Metadata
     metadata: jsonb('metadata').default('{}'),
