@@ -2,6 +2,7 @@ import { kycProcedure, protectedProcedure, t } from '@hyperdash/contracts';
 import { agentWallets } from '@hyperdash/database';
 import { schemas } from '@hyperdash/shared-types';
 import { and, eq } from 'drizzle-orm';
+import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 import * as copyService from '../services/copy-trading';
 import { getDatabaseConnection } from '../services/connection';
@@ -223,7 +224,7 @@ export const copyRouter = t.router({
       const perf = await copyService.getStrategyPerformance(strategyId, userId);
 
       if (!perf) {
-        throw new Error('Strategy not found');
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Strategy not found' });
       }
 
       // Calculate period start based on timeframe
@@ -363,13 +364,13 @@ export const copyRouter = t.router({
       // Validate allocations sum to 1.0
       const totalWeight = allocations.reduce((sum, alloc) => sum + alloc.weight, 0);
       if (Math.abs(totalWeight - 1.0) > 0.0001) {
-        throw new Error('Allocation weights must sum to 1.0');
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Allocation weights must sum to 1.0' });
       }
 
       // Service layer enforces ownership; this still rejects unknown IDs.
       const strategy = await copyService.getStrategyById(strategyId, userId);
       if (!strategy) {
-        throw new Error('Strategy not found or access denied');
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Strategy not found or access denied' });
       }
 
       // For now, we'd need to update allocations by ID
@@ -523,7 +524,17 @@ export const copyRouter = t.router({
   // Generate a new agent wallet for the user
   generateAgentWallet: protectedProcedure.mutation(async ({ ctx }) => {
     const userId = ctx.user!.userId;
-    const encryptionKey = getEncryptionKey();
+
+    let encryptionKey: Buffer;
+    try {
+      encryptionKey = getEncryptionKey();
+    } catch (error) {
+      throw new TRPCError({
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'Server encryption not configured',
+      });
+    }
+
     const wallet = generateAgentWallet(encryptionKey);
     const db = getDatabaseConnection().getDatabase();
 
@@ -558,7 +569,7 @@ export const copyRouter = t.router({
         .where(and(eq(agentWallets.id, input.walletId), eq(agentWallets.userId, userId)))
         .limit(1);
 
-      if (!wallet) throw new Error('Agent wallet not found');
+      if (!wallet) throw new TRPCError({ code: 'NOT_FOUND', message: 'Agent wallet not found' });
 
       await db
         .update(agentWallets)
