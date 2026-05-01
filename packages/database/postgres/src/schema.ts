@@ -442,6 +442,46 @@ export const copyPositions = pgTable(
   }),
 );
 
+// AI Recommendations - stores AI-generated trading recommendations
+export const aiRecommendations = pgTable(
+  'ai_recommendations',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    strategyId: uuid('strategy_id')
+      .references(() => copyStrategies.id, { onDelete: 'set null' }),
+
+    // Recommendation type
+    type: text('type').notNull(), // 'trader_selection', 'weight_rebalance', 'leverage_adjustment'
+
+    // Input data snapshot
+    inputData: jsonb('input_data').notNull(),
+
+    // AI output
+    recommendations: jsonb('recommendations').notNull(),
+    reasoning: text('reasoning').notNull(),
+    confidence: decimal('confidence', { precision: 5, scale: 2 }).notNull(),
+
+    // Status
+    status: text('status').default('pending').notNull(), // 'pending', 'approved', 'rejected', 'applied'
+
+    // User decision
+    reviewedAt: timestamp('reviewed_at'),
+    reviewNotes: text('review_notes'),
+
+    // Timestamps
+    createdAt: timestamp('created_at').defaultNow(),
+    updatedAt: timestamp('updated_at').defaultNow(),
+  },
+  (table) => ({
+    userIdIdx: index('idx_ai_recommendations_user_id').on(table.userId),
+    strategyIdIdx: index('idx_ai_recommendations_strategy_id').on(table.strategyId),
+    statusIdx: index('idx_ai_recommendations_status').on(table.status),
+  }),
+);
+
 // Types
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
@@ -455,3 +495,5 @@ export type CopyOrder = typeof copyOrders.$inferSelect;
 export type NewCopyOrder = typeof copyOrders.$inferInsert;
 export type CopyPosition = typeof copyPositions.$inferSelect;
 export type NewCopyPosition = typeof copyPositions.$inferInsert;
+export type AiRecommendation = typeof aiRecommendations.$inferSelect;
+export type NewAiRecommendation = typeof aiRecommendations.$inferInsert;

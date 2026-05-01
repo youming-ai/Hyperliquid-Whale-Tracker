@@ -122,6 +122,30 @@ async function runMigrations() {
     `;
     console.log('✅ trader_positions table created');
 
+    // Create ai_recommendations table
+    await client`
+      CREATE TABLE IF NOT EXISTS ai_recommendations (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        strategy_id uuid REFERENCES copy_strategies(id) ON DELETE SET NULL,
+        type text NOT NULL,
+        input_data jsonb NOT NULL,
+        recommendations jsonb NOT NULL,
+        reasoning text NOT NULL,
+        confidence numeric(5, 2) NOT NULL,
+        status text DEFAULT 'pending' NOT NULL,
+        reviewed_at timestamp,
+        review_notes text,
+        created_at timestamp DEFAULT now(),
+        updated_at timestamp DEFAULT now()
+      );
+    `;
+    console.log('✅ ai_recommendations table created');
+
+    await client`CREATE INDEX IF NOT EXISTS idx_ai_recommendations_user_id ON ai_recommendations(user_id);`;
+    await client`CREATE INDEX IF NOT EXISTS idx_ai_recommendations_strategy_id ON ai_recommendations(strategy_id);`;
+    await client`CREATE INDEX IF NOT EXISTS idx_ai_recommendations_status ON ai_recommendations(status);`;
+
     // Create indexes
     console.log('Creating indexes...');
 
