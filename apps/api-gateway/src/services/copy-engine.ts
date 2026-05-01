@@ -13,6 +13,10 @@ import * as schema from '@hyperdash/database';
 import { and, desc, eq, sql } from 'drizzle-orm';
 import { calculateCopyTargets } from './copy-targets';
 import { getDatabaseConnection } from '../services/connection';
+import { privateKeyToAccount } from 'viem/accounts';
+import { decryptKey, getEncryptionKey } from './key-management';
+import { buildMarketOrder, placeOrder } from './exchange';
+import { checkDailyLossLimit, checkMaxOrderSize } from './safety-controls';
 
 export interface ExecutionConfig {
   executionInterval: number; // seconds between execution cycles
@@ -371,27 +375,151 @@ export class CopyTradingEngine {
    * Execute trades to achieve target positions
    */
   private async executeTrades(strategy: any, deltas: PositionDelta[]): Promise<void> {
-    for (const delta of deltas) {
-      // Create copy order record
-      await this.db.insert(schema.copyOrders).values({
-        userId: strategy.userId,
-        strategyId: strategy.id,
-        agentWalletId: strategy.agentWalletId,
-        exchange: 'hyperliquid',
-        symbol: delta.symbol,
-        side: delta.action,
-        orderType: 'market',
-        quantity: Math.abs(delta.delta).toString(),
-        status: 'submitted',
-        submittedAt: new Date(),
-        errorMessage: null,
-      } as any);
+    // Get agent wallet for this strategy
+    const [agentWallet] = await this.db
+      .select()
+      .from(schema.agentWallets)
+      .where(eq(schema.agentWallets.id, strategy.agentWalletId))
+      .limit(1) as any[];
 
-      // TODO: Integrate with Hyperliquid API to execute actual trades
-      console.log(
-        `[CopyEngine] Would execute ${delta.action} ${Math.abs(delta.delta)} ${delta.symbol} for strategy ${strategy.id}`,
-      );
+    if (!agentWallet?.encryptedPrivateKey) {
+      console.error(`[CopyEngine] No agent wallet with private key for strategy ${strategy.id}`);
+      return;
     }
+
+    // Safety checks
+    const dailyPnl = await this.getDailyPnl(strategy.id);
+    const lossCheck = checkDailyLossLimit({
+      dailyPnl,
+      maxDailyLossUsd: Number(strategy.maxDailyLossUsd || 1000),
+    });
+    if (!lossCheck.allowed) {
+      console.warn(`[CopyEngine] ${lossCheck.reason} for strategy ${strategy.id}`);
+      await this.db
+        .update(schema.copyStrategies)
+        .set({ status: 'error' })
+        .where(eq(schema.copyStrategies.id, strategy.id));
+      return;
+    }
+
+    // Decrypt private key
+    let account;
+    try {
+      const encryptionKey = getEncryptionKey();
+      const privateKey = decryptKey(agentWallet.encryptedPrivateKey, encryptionKey);
+      account = privateKeyToAccount(privateKey as `0x${string}`);
+    } catch (error) {
+      console.error(`[CopyEngine] Failed to decrypt private key:`, error);
+      return;
+    }
+
+    // Get meta for asset indices and mids for prices
+    const meta = await this.getMeta();
+    const mids = await this.getMids();
+
+    for (const delta of deltas) {
+      const sizeCheck = checkMaxOrderSize({
+        quantity: Math.abs(delta.delta),
+        markPrice: mids[delta.symbol] || 0,
+        maxOrderUsd: Number(strategy.maxOrderUsd || 500),
+      });
+      if (!sizeCheck.allowed) {
+        console.warn(`[CopyEngine] ${sizeCheck.reason}`);
+        continue;
+      }
+
+      const assetIndex = meta.universe.findIndex((a: any) => a.name === delta.symbol);
+      if (assetIndex === -1) {
+        console.error(`[CopyEngine] Asset ${delta.symbol} not found in meta`);
+        continue;
+      }
+
+      const order = buildMarketOrder({
+        assetIndex,
+        isBuy: delta.action === 'buy',
+        size: Math.abs(delta.delta).toString(),
+        midPrice: mids[delta.symbol] || 0,
+        slippageBps: Number(strategy.slippageBps || 10),
+      });
+
+      // Insert order record
+      const [orderRow] = await this.db
+        .insert(schema.copyOrders)
+        .values({
+          userId: strategy.userId,
+          strategyId: strategy.id,
+          agentWalletId: strategy.agentWalletId,
+          exchange: 'hyperliquid',
+          symbol: delta.symbol,
+          side: delta.action,
+          orderType: 'market',
+          quantity: Math.abs(delta.delta).toString(),
+          status: 'submitted',
+          submittedAt: new Date(),
+        } as any)
+        .returning();
+
+      try {
+        const nonce = Date.now();
+        const response = await placeOrder(account, [order], nonce);
+
+        if (response.status === 'err') {
+          await this.db
+            .update(schema.copyOrders)
+            .set({ status: 'failed', errorMessage: response.error })
+            .where(eq(schema.copyOrders.id, orderRow.id));
+          console.error(`[CopyEngine] Order failed: ${response.error}`);
+        } else {
+          console.log(`[CopyEngine] Order submitted for ${delta.symbol}`);
+        }
+      } catch (error) {
+        await this.db
+          .update(schema.copyOrders)
+          .set({ status: 'failed', errorMessage: String(error) })
+          .where(eq(schema.copyOrders.id, orderRow.id));
+        console.error(`[CopyEngine] Order execution error:`, error);
+      }
+    }
+  }
+
+  private async getDailyPnl(strategyId: string): Promise<number> {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const orders = await this.db
+      .select({ pnl: schema.copyOrders.pnl })
+      .from(schema.copyOrders)
+      .where(
+        and(
+          eq(schema.copyOrders.strategyId, strategyId),
+          sql`${schema.copyOrders.createdAt} >= ${today}`,
+        ),
+      );
+
+    return orders.reduce((sum, o) => sum + Number(o.pnl || 0), 0);
+  }
+
+  private async getMeta(): Promise<any> {
+    const res = await fetch(process.env.HYPERLIQUID_API_URL ?? 'https://api.hyperliquid.xyz/info', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'meta' }),
+    });
+    return res.json();
+  }
+
+  private async getMids(): Promise<Record<string, number>> {
+    const res = await fetch(process.env.HYPERLIQUID_API_URL ?? 'https://api.hyperliquid.xyz/info', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'allMids' }),
+    });
+    const data = await res.json();
+    const result: Record<string, number> = {};
+    for (const [key, value] of Object.entries(data)) {
+      result[key] = Number(value);
+    }
+    return result;
   }
 
   /**
