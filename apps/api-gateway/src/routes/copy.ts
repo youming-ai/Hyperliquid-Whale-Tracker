@@ -1,7 +1,12 @@
 import { kycProcedure, protectedProcedure, t } from '@hyperdash/contracts';
+import { agentWallets } from '@hyperdash/database';
 import { schemas } from '@hyperdash/shared-types';
+import { and, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import * as copyService from '../services/copy-trading';
+import { getDatabaseConnection } from '../services/connection';
+import { generateAgentWallet } from '../services/agent-wallets';
+import { getEncryptionKey } from '../services/key-management';
 
 /**
  * Copy Trading Router
@@ -513,5 +518,53 @@ export const copyRouter = t.router({
         status: updatedStrategy!.status,
         timestamp: updatedStrategy!.updatedAt?.toISOString() || new Date().toISOString(),
       };
+    }),
+
+  // Generate a new agent wallet for the user
+  generateAgentWallet: protectedProcedure.mutation(async ({ ctx }) => {
+    const userId = ctx.user!.userId;
+    const encryptionKey = getEncryptionKey();
+    const wallet = generateAgentWallet(encryptionKey);
+    const db = getDatabaseConnection().getDatabase();
+
+    const [row] = await db
+      .insert(agentWallets)
+      .values({
+        userId,
+        exchange: 'hyperliquid',
+        address: wallet.address,
+        encryptedPrivateKey: wallet.encryptedPrivateKey,
+        status: 'pending_approval',
+      })
+      .returning();
+
+    return {
+      walletId: row.id,
+      address: wallet.address,
+      status: 'pending_approval',
+    };
+  }),
+
+  // Verify agent wallet approval and activate it
+  verifyAgentApproval: protectedProcedure
+    .input(z.object({ walletId: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.user!.userId;
+      const db = getDatabaseConnection().getDatabase();
+
+      const [wallet] = await db
+        .select()
+        .from(agentWallets)
+        .where(and(eq(agentWallets.id, input.walletId), eq(agentWallets.userId, userId)))
+        .limit(1);
+
+      if (!wallet) throw new Error('Agent wallet not found');
+
+      await db
+        .update(agentWallets)
+        .set({ status: 'active' })
+        .where(eq(agentWallets.id, input.walletId));
+
+      return { success: true, address: wallet.address };
     }),
 });
