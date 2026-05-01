@@ -10,7 +10,7 @@
  */
 
 import * as schema from '@hyperdash/database';
-import { and, desc, eq, sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { calculateCopyTargets } from './copy-targets';
 import { getDatabaseConnection } from '../services/connection';
 import { privateKeyToAccount } from 'viem/accounts';
@@ -49,6 +49,7 @@ export class CopyTradingEngine {
   private isRunning = false;
   private intervalId?: NodeJS.Timeout;
   private db = getDatabaseConnection().getDatabase();
+  private nonceCounter = 0;
 
   constructor(config: ExecutionConfig = {}) {
     this.config = {
@@ -414,13 +415,25 @@ export class CopyTradingEngine {
     }
 
     // Get meta for asset indices and mids for prices
-    const meta = await this.getMeta();
-    const mids = await this.getMids();
+    let meta: any;
+    let mids: Record<string, number>;
+    try {
+      [meta, mids] = await Promise.all([this.getMeta(), this.getMids()]);
+    } catch (error) {
+      console.error(`[CopyEngine] Failed to fetch meta/mids:`, error);
+      return;
+    }
 
     for (const delta of deltas) {
+      const midPrice = mids[delta.symbol];
+      if (!midPrice || midPrice <= 0) {
+        console.error(`[CopyEngine] No price available for ${delta.symbol}`);
+        continue;
+      }
+
       const sizeCheck = checkMaxOrderSize({
         quantity: Math.abs(delta.delta),
-        markPrice: mids[delta.symbol] || 0,
+        markPrice: midPrice,
         maxOrderUsd: Number(strategy.maxOrderUsd || 500),
       });
       if (!sizeCheck.allowed) {
@@ -438,7 +451,7 @@ export class CopyTradingEngine {
         assetIndex,
         isBuy: delta.action === 'buy',
         size: Math.abs(delta.delta).toString(),
-        midPrice: mids[delta.symbol] || 0,
+        midPrice,
         slippageBps: Number(strategy.slippageBps || 10),
       });
 
@@ -460,7 +473,7 @@ export class CopyTradingEngine {
         .returning();
 
       try {
-        const nonce = Date.now();
+        const nonce = Date.now() * 1000 + (this.nonceCounter++ % 1000);
         const response = await placeOrder(account, [order], nonce);
 
         if (response.status === 'err') {
