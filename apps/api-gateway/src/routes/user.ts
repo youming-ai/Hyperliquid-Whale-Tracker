@@ -1,4 +1,12 @@
-import { protectedProcedure, kycProcedure, t } from '@hyperdash/contracts';
+import { kycProcedure, protectedProcedure, t } from '@hyperdash/contracts';
+import {
+  AgentWallet,
+  Notification,
+  PriceAlert,
+  UserProfile,
+  UserStatistics,
+  UserTrade,
+} from '@hyperdash/shared-types';
 import { z } from 'zod';
 
 /**
@@ -53,7 +61,7 @@ export const userRouter = t.router({
       updatedAt: new Date().toISOString(),
     };
 
-    return mockProfile;
+    return UserProfile.parse(mockProfile);
   }),
 
   // Update user profile
@@ -157,7 +165,7 @@ export const userRouter = t.router({
       },
     ];
 
-    return mockWallets;
+    return mockWallets.map((wallet) => AgentWallet.parse(wallet));
   }),
 
   // Add new agent wallet
@@ -198,7 +206,7 @@ export const userRouter = t.router({
       };
 
       console.log(`Added wallet for user ${userId}:`, newWallet);
-      return newWallet;
+      return AgentWallet.parse(newWallet);
     }),
 
   // Get user's price alerts
@@ -241,7 +249,7 @@ export const userRouter = t.router({
 
       const filtered =
         status === 'all' ? mockAlerts : mockAlerts.filter((alert) => alert.status === status);
-      return filtered.slice(0, limit);
+      return filtered.slice(0, limit).map((alert) => PriceAlert.parse(alert));
     }),
 
   // Create price alert
@@ -277,7 +285,7 @@ export const userRouter = t.router({
       };
 
       console.log(`Created alert for user ${userId}:`, newAlert);
-      return newAlert;
+      return PriceAlert.parse(newAlert);
     }),
 
   // Delete price alert
@@ -361,7 +369,7 @@ export const userRouter = t.router({
 
       const paginated = filtered.slice(offset, offset + limit);
       return {
-        notifications: paginated,
+        notifications: paginated.map((notif) => Notification.parse(notif)),
         total: filtered.length,
         unread: filtered.filter((notif) => !notif.read).length,
       };
@@ -424,7 +432,7 @@ export const userRouter = t.router({
         timestamp: new Date(Date.now() - (offset + i) * 3600000).toISOString(),
       }));
 
-      return mockHistory;
+      return mockHistory.map((trade) => UserTrade.parse(trade));
     }),
 
   // Get user statistics
@@ -480,6 +488,6 @@ export const userRouter = t.router({
         },
       };
 
-      return mockStats;
+      return UserStatistics.parse(mockStats);
     }),
 });

@@ -1,5 +1,6 @@
-import { publicProcedure, t } from '@hyperdash/contracts';
+import { protectedProcedure, publicProcedure, t } from '@hyperdash/contracts';
 import { TRPCError } from '@trpc/server';
+import { decodeJwt } from 'jose';
 import { z } from 'zod';
 import { getAuthService } from '../services/auth';
 import { logger } from '../utils/logger';
@@ -22,11 +23,7 @@ async function findOrCreateUser(walletAddress: string) {
  */
 function decodeToken(token: string) {
   try {
-    // Simple base64 decode for JWT payload
-    const parts = token.split('.');
-    if (parts.length !== 3) return null;
-    const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
-    return { payload };
+    return decodeJwt(token);
   } catch {
     return null;
   }
@@ -75,62 +72,74 @@ export const authRouter = t.router({
         nonce: z.string(),
       }),
     )
-    .mutation(async ({ input, ctx }: { input: { walletAddress: string; signature: string; nonce: string }; ctx: any }) => {
-      const { walletAddress, signature, nonce } = input;
-      const authService = getAuthService();
+    .mutation(
+      async ({
+        input,
+        ctx,
+      }: {
+        input: { walletAddress: string; signature: string; nonce: string };
+        ctx: any;
+      }) => {
+        const { walletAddress, signature, nonce } = input;
+        const authService = getAuthService();
 
-      try {
-        // Verify wallet signature
-        const message = `Sign this message to authenticate with HyperDash: ${nonce}`;
-        const isValidSignature = await authService.verifyWalletSignature(
-          walletAddress,
-          message,
-          signature,
-          nonce,
-        );
+        try {
+          // Verify wallet signature
+          const message = `Sign this message to authenticate with HyperDash: ${nonce}`;
+          const isValidSignature = await authService.verifyWalletSignature(
+            walletAddress,
+            message,
+            signature,
+            nonce,
+          );
 
-        if (!isValidSignature) {
+          if (!isValidSignature) {
+            throw new TRPCError({
+              code: 'UNAUTHORIZED',
+              message: 'Invalid signature or nonce',
+            });
+          }
+
+          // Check if user exists in database (mock implementation)
+          const userPayload = await findOrCreateUser(walletAddress);
+
+          // Generate tokens
+          const tokens = await authService.generateTokens(userPayload);
+
+          logger.info(`Wallet authentication successful`, {
+            userId: userPayload.userId,
+            walletAddress,
+            ip: ctx.req?.socket?.remoteAddress,
+            userAgent: ctx.req?.headers?.['user-agent'],
+          });
+
+          return {
+            user: {
+              userId: userPayload.userId,
+              walletAddress: userPayload.walletAddr,
+              kycLevel: userPayload.kycLevel,
+              tier: userPayload.tier,
+              email: userPayload.email,
+            },
+            tokens,
+          };
+        } catch (error) {
+          logger.error(
+            `Wallet authentication failed`,
+            error instanceof Error ? error : new Error(String(error)),
+            {
+              walletAddress,
+              ip: ctx.req?.socket?.remoteAddress,
+            },
+          );
+
           throw new TRPCError({
             code: 'UNAUTHORIZED',
-            message: 'Invalid signature or nonce',
+            message: 'Authentication failed',
           });
         }
-
-        // Check if user exists in database (mock implementation)
-        const userPayload = await findOrCreateUser(walletAddress);
-
-        // Generate tokens
-        const tokens = await authService.generateTokens(userPayload);
-
-        logger.info(`Wallet authentication successful`, {
-          userId: userPayload.userId,
-          walletAddress,
-          ip: ctx.req?.socket?.remoteAddress,
-          userAgent: ctx.req?.headers?.['user-agent'],
-        });
-
-        return {
-          user: {
-            userId: userPayload.userId,
-            walletAddress: userPayload.walletAddr,
-            kycLevel: userPayload.kycLevel,
-            tier: userPayload.tier,
-            email: userPayload.email,
-          },
-          tokens,
-        };
-      } catch (error) {
-        logger.error(`Wallet authentication failed`, error instanceof Error ? error : new Error(String(error)), {
-          walletAddress,
-          ip: ctx.req?.socket?.remoteAddress,
-        });
-
-        throw new TRPCError({
-          code: 'UNAUTHORIZED',
-          message: 'Authentication failed',
-        });
-      }
-    }),
+      },
+    ),
 
   // Refresh access token
   refreshToken: publicProcedure
@@ -154,9 +163,13 @@ export const authRouter = t.router({
           tokens: newTokens,
         };
       } catch (error) {
-        logger.error(`Token refresh failed`, error instanceof Error ? error : new Error(String(error)), {
-          ip: ctx.req?.socket?.remoteAddress,
-        });
+        logger.error(
+          `Token refresh failed`,
+          error instanceof Error ? error : new Error(String(error)),
+          {
+            ip: ctx.req?.socket?.remoteAddress,
+          },
+        );
 
         throw new TRPCError({
           code: 'UNAUTHORIZED',
@@ -166,30 +179,31 @@ export const authRouter = t.router({
     }),
 
   // Logout (revoke refresh token)
-  logout: publicProcedure
+  logout: protectedProcedure
     .input(
       z.object({
         refreshToken: z.string().optional(),
         allDevices: z.boolean().default(false),
       }),
     )
-    .mutation(async ({ input, ctx }: { input: { refreshToken?: string; allDevices: boolean }; ctx: any }) => {
+    .mutation(async ({ input, ctx }) => {
       const { refreshToken, allDevices } = input;
       const authService = getAuthService();
 
       try {
         if (allDevices) {
           logger.info(`Logged out from all devices`, {
+            userId: ctx.user.userId,
             ip: ctx.req?.socket?.remoteAddress,
           });
         } else if (refreshToken) {
-          const decoded = decodeToken(refreshToken) as any;
-          if (decoded?.payload?.tokenId) {
-            await authService.revokeToken(decoded.payload.tokenId);
+          const decoded = decodeToken(refreshToken) as Record<string, unknown> | null;
+          if (decoded?.tokenId) {
+            await authService.revokeToken(decoded.tokenId as string);
           }
 
           logger.info(`Logged out specific device`, {
-            tokenId: decoded?.payload?.tokenId,
+            tokenId: decoded?.tokenId,
             ip: ctx.req?.socket?.remoteAddress,
           });
         }
@@ -203,7 +217,6 @@ export const authRouter = t.router({
           ip: ctx.req?.socket?.remoteAddress,
         });
 
-        // Don't throw error for logout, just return success
         return {
           success: true,
           message: 'Logout completed',
@@ -250,11 +263,11 @@ export const authRouter = t.router({
         token: z.string(),
       }),
     )
-    .query(async ({ input, ctx }: { input: { token: string }; ctx: any }) => {
+    .query(async ({ input }) => {
       const { token } = input;
 
       try {
-        const decoded = decodeToken(token) as any;
+        const decoded = decodeToken(token) as Record<string, unknown> | null;
 
         if (!decoded) {
           throw new TRPCError({
@@ -263,19 +276,17 @@ export const authRouter = t.router({
           });
         }
 
-        const payload = decoded.payload || {};
-
         return {
           decoded: {
-            sub: payload.sub,
-            type: payload.type,
-            iat: payload.iat,
-            exp: payload.exp,
-            iss: payload.iss,
-            aud: payload.aud,
+            sub: decoded.sub,
+            type: decoded.type,
+            iat: decoded.iat,
+            exp: decoded.exp,
+            iss: decoded.iss,
+            aud: decoded.aud,
           },
-          expired: payload.exp ? Date.now() / 1000 > payload.exp : false,
-          validUntil: payload.exp ? new Date(payload.exp * 1000).toISOString() : null,
+          expired: decoded.exp ? Date.now() / 1000 > (decoded.exp as number) : false,
+          validUntil: decoded.exp ? new Date((decoded.exp as number) * 1000).toISOString() : null,
         };
       } catch (error) {
         throw new TRPCError({
@@ -286,7 +297,7 @@ export const authRouter = t.router({
     }),
 
   // Get authentication statistics (admin only)
-  authStats: publicProcedure.query(async ({ ctx }: { ctx: any }) => {
+  authStats: protectedProcedure.query(async ({ ctx }) => {
     const authService = getAuthService();
     const stats = authService.getTokenStats();
 

@@ -8,6 +8,8 @@ export interface DatabaseConfig {
   maxConnections?: number;
   idleTimeout?: number;
   connectTimeout?: number;
+  maxLifetime?: number;
+  prepare?: boolean;
 }
 
 export class DatabaseConnection {
@@ -21,6 +23,8 @@ export class DatabaseConnection {
       maxConnections: 10,
       idleTimeout: 30000,
       connectTimeout: 10000,
+      maxLifetime: 60 * 30,
+      prepare: true,
       ...config,
     };
   }
@@ -37,9 +41,8 @@ export class DatabaseConnection {
         max: this.config.maxConnections,
         idle_timeout: this.config.idleTimeout,
         connect_timeout: this.config.connectTimeout,
-        // Enable prepared statements
-        prepare: true,
-        // SSL configuration
+        max_lifetime: this.config.maxLifetime,
+        prepare: this.config.prepare,
         ssl: process.env.NODE_ENV === 'production' ? 'require' : false,
         // Connection validation
         onnotice: (notice) => {
@@ -124,7 +127,9 @@ export class DatabaseConnection {
   }
 
   // Transaction helper
-  async transaction<T>(callback: (tx: PostgresJsDatabase<typeof schema>) => Promise<T>): Promise<T> {
+  async transaction<T>(
+    callback: (tx: PostgresJsDatabase<typeof schema>) => Promise<T>,
+  ): Promise<T> {
     if (!this.db) {
       throw new Error('Database not initialized');
     }

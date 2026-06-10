@@ -1,6 +1,6 @@
+import type { Context } from '@hyperdash/contracts';
 import { initTRPC, TRPCError } from '@trpc/server';
 import { z } from 'zod';
-import type { Context } from '@hyperdash/contracts';
 
 // Initialize tRPC
 export const t = initTRPC.context<Context>().create({
@@ -16,19 +16,22 @@ export const t = initTRPC.context<Context>().create({
   }),
 });
 
-// Simple rate limit middleware placeholder
-const rateLimitMiddleware = async ({ ctx, next }: { ctx: any; next: any }) => {
+// Middleware type: tRPC's MiddlewareFunction expects next() to return MiddlewareResult,
+// not a plain Context object. Using 'any' here is necessary to satisfy tRPC's complex
+// generic constraints until explicit types are derived from the initTRPC instance.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type MiddlewareOpts = { ctx: any; next: any };
+
+const rateLimitMiddleware = async ({ ctx, next }: MiddlewareOpts) => {
   return next({ ctx });
 };
 
-// Simple validation middleware placeholder
-const validationMiddleware = async ({ ctx, next }: { ctx: any; next: any }) => {
+const validationMiddleware = async ({ ctx, next }: MiddlewareOpts) => {
   return next({ ctx });
 };
 
-// Define procedures
 export const publicProcedure = t.procedure;
-export const authMiddleware = async ({ ctx, next }: { ctx: any; next: any }) => {
+export const authMiddleware = async ({ ctx, next }: MiddlewareOpts) => {
   if (!ctx.user) {
     throw new TRPCError({ code: 'UNAUTHORIZED' });
   }

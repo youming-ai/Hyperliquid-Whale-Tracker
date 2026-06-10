@@ -8,24 +8,22 @@ import { z } from 'zod';
  */
 export const marketRouter = t.router({
   // Market overview
-  overview: publicProcedure
-    .input(z.object({ symbol: z.string() }))
-    .query(async ({ input }) => {
-      return {
-        symbol: input.symbol,
-        exchange: 'hyperliquid',
-        timestamp: new Date().toISOString(),
-        price: 0,
-        markPrice: 0,
-        indexPrice: 0,
-        fundingRate: 0,
-        nextFundingTime: new Date().toISOString(),
-        openInterest: 0,
-        volume24h: 0,
-        longShortRatio: 0,
-        volatility24h: 0,
-      };
-    }),
+  overview: publicProcedure.input(z.object({ symbol: z.string() })).query(async ({ input }) => {
+    return {
+      symbol: input.symbol,
+      exchange: 'hyperliquid',
+      timestamp: new Date().toISOString(),
+      price: 0,
+      markPrice: 0,
+      indexPrice: 0,
+      fundingRate: 0,
+      nextFundingTime: new Date().toISOString(),
+      openInterest: 0,
+      volume24h: 0,
+      longShortRatio: 0,
+      volatility24h: 0,
+    };
+  }),
 
   // OHLCV data
   ohlcv: publicProcedure
@@ -54,16 +52,14 @@ export const marketRouter = t.router({
     }),
 
   // Ticker
-  ticker: publicProcedure
-    .input(z.object({ symbol: z.string() }))
-    .query(async ({ input }) => {
-      return {
-        symbol: input.symbol,
-        price: 0,
-        change24h: 0,
-        volume24h: 0,
-      };
-    }),
+  ticker: publicProcedure.input(z.object({ symbol: z.string() })).query(async ({ input }) => {
+    return {
+      symbol: input.symbol,
+      price: 0,
+      change24h: 0,
+      volume24h: 0,
+    };
+  }),
 
   // Prices
   prices: publicProcedure

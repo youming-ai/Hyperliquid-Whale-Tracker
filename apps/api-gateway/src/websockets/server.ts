@@ -1,3 +1,4 @@
+import { createAuthContext } from '@hyperdash/contracts';
 import type { Server as HTTPServer } from 'http';
 import { type Socket, Server as SocketIOServer } from 'socket.io';
 
@@ -87,8 +88,8 @@ class WebSocketManager {
           return next(new Error('Authentication required'));
         }
 
-        // Mock auth context - in production, verify JWT properly
-        const user = { userId: 'mock_user', walletAddr: '', kycLevel: 1, permissions: [] };
+        // Verify JWT properly
+        const user = await createAuthContext(token);
         (socket as AuthenticatedSocket).userId = user.userId;
         (socket as AuthenticatedSocket).user = user;
 

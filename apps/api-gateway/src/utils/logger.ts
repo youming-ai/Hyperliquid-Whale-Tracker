@@ -39,10 +39,12 @@ class Logger {
   private level: number;
   private context: LogContext = {};
   private silent: boolean;
+  private format: 'json' | 'pretty';
 
   constructor(config: LoggerConfig) {
     this.level = LOG_LEVELS[config.level] ?? LOG_LEVELS.info;
     this.silent = config.silent;
+    this.format = config.format;
   }
 
   private shouldLog(level: string): boolean {
@@ -50,16 +52,29 @@ class Logger {
     return (LOG_LEVELS[level] ?? LOG_LEVELS.info) <= this.level;
   }
 
-  private formatMessage(level: string, message: string, meta?: any): string {
-    const timestamp = new Date().toISOString();
-    const metaStr = meta && Object.keys(meta).length > 0 ? ` ${JSON.stringify(meta)}` : '';
-    return `${timestamp} [${level.toUpperCase()}]: ${message}${metaStr}`;
+  private formatEntry(level: string, message: string, meta?: Record<string, unknown>): string {
+    const entry: Record<string, unknown> = {
+      timestamp: new Date().toISOString(),
+      level: level.toUpperCase(),
+      message,
+      ...this.context,
+      ...meta,
+    };
+
+    if (this.format === 'json') {
+      return JSON.stringify(entry);
+    }
+
+    // Pretty format
+    const { timestamp, level: lvl, message: msg, ...rest } = entry;
+    const metaStr = Object.keys(rest).length > 0 ? ` ${JSON.stringify(rest)}` : '';
+    return `${timestamp} [${lvl}]: ${msg}${metaStr}`;
   }
 
-  private log(level: string, message: string, meta?: any): void {
+  private log(level: string, message: string, meta?: Record<string, unknown>): void {
     if (!this.shouldLog(level)) return;
-    const formatted = this.formatMessage(level, message, { ...this.context, ...meta });
-    
+    const formatted = this.formatEntry(level, message, meta);
+
     if (level === 'error') {
       console.error(formatted);
     } else if (level === 'warn') {
@@ -67,6 +82,20 @@ class Logger {
     } else {
       console.log(formatted);
     }
+  }
+
+  private getLevelName(): string {
+    return Object.keys(LOG_LEVELS).find((k) => LOG_LEVELS[k] === this.level) || 'info';
+  }
+
+  private createChildConfig(): LoggerConfig {
+    return {
+      level: this.getLevelName(),
+      silent: this.silent,
+      format: this.format,
+      enableFile: false,
+      enableConsole: true,
+    };
   }
 
   setContext(context: LogContext): void {
@@ -82,13 +111,7 @@ class Logger {
   }
 
   withContext(context: LogContext): Logger {
-    const logger = new Logger({
-      level: Object.keys(LOG_LEVELS).find(k => LOG_LEVELS[k] === this.level) || 'info',
-      silent: this.silent,
-      format: 'json',
-      enableFile: false,
-      enableConsole: true,
-    });
+    const logger = new Logger(this.createChildConfig());
     logger.setContext({ ...this.context, ...context });
     return logger;
   }
@@ -106,13 +129,15 @@ class Logger {
   }
 
   error(message: string, error?: Error, context?: LogContext): void {
-    const errorMeta = error ? {
-      error: {
-        name: error.name,
-        message: error.message,
-        stack: error.stack,
-      },
-    } : {};
+    const errorMeta = error
+      ? {
+          error: {
+            name: error.name,
+            message: error.message,
+            stack: error.stack,
+          },
+        }
+      : {};
     this.log('error', message, { ...context, ...errorMeta });
   }
 
@@ -165,7 +190,13 @@ class Logger {
     });
   }
 
-  logApiCall(url: string, method: string, statusCode: number, duration: number, context?: LogContext): void {
+  logApiCall(
+    url: string,
+    method: string,
+    statusCode: number,
+    duration: number,
+    context?: LogContext,
+  ): void {
     this.log('info', 'External API Call', {
       logType: 'external_api',
       api: { url, method, statusCode, duration },
@@ -173,7 +204,14 @@ class Logger {
     });
   }
 
-  logSecurity(event: string, context: LogContext & { severity?: 'low' | 'medium' | 'high' | 'critical'; source?: string; details?: any }): void {
+  logSecurity(
+    event: string,
+    context: LogContext & {
+      severity?: 'low' | 'medium' | 'high' | 'critical';
+      source?: string;
+      details?: any;
+    },
+  ): void {
     this.log('warn', `Security Event: ${event}`, {
       logType: 'security',
       security: {
@@ -206,13 +244,7 @@ class Logger {
   }
 
   child(context: LogContext): Logger {
-    const childLogger = new Logger({
-      level: Object.keys(LOG_LEVELS).find(k => LOG_LEVELS[k] === this.level) || 'info',
-      silent: this.silent,
-      format: 'json',
-      enableFile: false,
-      enableConsole: true,
-    });
+    const childLogger = new Logger(this.createChildConfig());
     childLogger.setContext({ ...this.context, ...context });
     return childLogger;
   }

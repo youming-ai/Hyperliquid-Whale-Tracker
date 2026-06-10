@@ -451,8 +451,7 @@ export const aiRecommendations = pgTable(
     userId: uuid('user_id')
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
-    strategyId: uuid('strategy_id')
-      .references(() => copyStrategies.id, { onDelete: 'set null' }),
+    strategyId: uuid('strategy_id').references(() => copyStrategies.id, { onDelete: 'set null' }),
 
     // Recommendation type
     type: text('type').notNull(), // 'trader_selection', 'weight_rebalance', 'leverage_adjustment'

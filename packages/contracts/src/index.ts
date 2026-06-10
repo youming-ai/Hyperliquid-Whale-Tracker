@@ -1,18 +1,15 @@
 // Main tRPC router and middleware exports
 
-// Note: AppRouter should be imported directly from @hyperdash/api-gateway when needed
-export { createAuthMiddleware } from './middleware/auth';
+// Note: For AppRouter type, import directly from source in the API gateway:
+//   import type { AppRouter } from '@hyperdash/api-gateway/src/routes';
+// Or import from the built dist after building api-gateway:
+//   import type { AppRouter } from '@hyperdash/api-gateway';
+export { createAuthContext, createAuthMiddleware } from './middleware/auth';
 export { createRateLimitMiddleware } from './middleware/rateLimit';
 export { createValidationMiddleware } from './middleware/validation';
 // Router exports
 export { marketRouter } from './routers/market';
-export {
-  kycProcedure,
-  protectedProcedure,
-  publicProcedure,
-  router,
-} from './trpc';
-export { default as t } from './trpc';
+export { default as t, kycProcedure, protectedProcedure, publicProcedure, router } from './trpc';
 export { type AsyncContext, type Context, createContext } from './types';
 export {
   AuthenticationError,

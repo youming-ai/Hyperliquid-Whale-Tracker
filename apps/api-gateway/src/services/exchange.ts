@@ -1,4 +1,4 @@
-import { type PrivateKeyAccount } from 'viem/accounts';
+import type { PrivateKeyAccount } from 'viem/accounts';
 
 export const HYPERLIQUID_EXCHANGE_URL =
   process.env.HYPERLIQUID_EXCHANGE_URL ?? 'https://api.hyperliquid.xyz/exchange';

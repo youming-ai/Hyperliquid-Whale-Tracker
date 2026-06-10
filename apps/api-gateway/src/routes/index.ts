@@ -78,14 +78,16 @@ export const appRouter = t.router({
   }),
 
   // WebSocket authentication endpoint
-  wsAuth: t.procedure.input(z.object({ token: z.string() })).mutation(async ({ input, ctx }: { input: { token: string }; ctx: any }) => {
-    // Implementation will validate JWT token and issue WebSocket auth token
-    return {
-      wsToken: 'ws_token_placeholder',
-      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-      permissions: ['market_data', 'trader_updates', 'copy_signals'],
-    };
-  }),
+  wsAuth: t.procedure
+    .input(z.object({ token: z.string() }))
+    .mutation(async ({ input, ctx }: { input: { token: string }; ctx: any }) => {
+      // Implementation will validate JWT token and issue WebSocket auth token
+      return {
+        wsToken: 'ws_token_placeholder',
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+        permissions: ['market_data', 'trader_updates', 'copy_signals'],
+      };
+    }),
 
   // Market data subscription validation
   validateSubscription: t.procedure
@@ -96,26 +98,34 @@ export const appRouter = t.router({
         filters: z.record(z.any()).optional(),
       }),
     )
-    .mutation(async ({ input, ctx }: { input: { type: string; symbols?: string[]; filters?: Record<string, any> }; ctx: any }) => {
-      // Implementation will validate if user can subscribe to requested data
-      if (!ctx.user) {
-        return { valid: false, reason: 'Authentication required' };
-      }
+    .mutation(
+      async ({
+        input,
+        ctx,
+      }: {
+        input: { type: string; symbols?: string[]; filters?: Record<string, any> };
+        ctx: any;
+      }) => {
+        // Implementation will validate if user can subscribe to requested data
+        if (!ctx.user) {
+          return { valid: false, reason: 'Authentication required' };
+        }
 
-      // Check user subscription level
-      const maxSymbols = ctx.user.kycLevel >= 2 ? 100 : 10;
-      if (input.symbols && input.symbols.length > maxSymbols) {
+        // Check user subscription level
+        const maxSymbols = ctx.user.kycLevel >= 2 ? 100 : 10;
+        if (input.symbols && input.symbols.length > maxSymbols) {
+          return {
+            valid: false,
+            reason: `Maximum ${maxSymbols} symbols allowed for your subscription level`,
+          };
+        }
+
         return {
-          valid: false,
-          reason: `Maximum ${maxSymbols} symbols allowed for your subscription level`,
+          valid: true,
+          expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
         };
-      }
-
-      return {
-        valid: true,
-        expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
-      };
-    }),
+      },
+    ),
 });
 
 export type AppRouter = typeof appRouter;

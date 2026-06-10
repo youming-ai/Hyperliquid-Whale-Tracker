@@ -1,10 +1,10 @@
-import { darkTheme, RainbowKitProvider } from "@rainbow-me/rainbowkit";
-import { QueryClientProvider } from "@tanstack/react-query";
-import { WagmiProvider } from "wagmi";
-import { queryClient } from "../lib/api/trpc";
-import { wagmiConfig } from "../lib/wagmi";
+import { darkTheme, RainbowKitProvider } from '@rainbow-me/rainbowkit';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { WagmiProvider } from 'wagmi';
+import { queryClient } from '../lib/api/trpc';
+import { wagmiConfig } from '../lib/wagmi';
 
-import "@rainbow-me/rainbowkit/styles.css";
+import '@rainbow-me/rainbowkit/styles.css';
 
 interface ProvidersProps {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -25,9 +25,9 @@ export function Providers({ children }: ProvidersProps) {
       <QueryClientProvider client={queryClient}>
         <RainbowKitProvider
           theme={darkTheme({
-            accentColor: "#3b82f6",
-            accentColorForeground: "white",
-            borderRadius: "medium",
+            accentColor: '#3b82f6',
+            accentColorForeground: 'white',
+            borderRadius: 'medium',
           })}
           modalSize="compact"
         >

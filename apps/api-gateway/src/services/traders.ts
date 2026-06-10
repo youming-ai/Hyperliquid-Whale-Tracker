@@ -41,7 +41,8 @@ export async function getTraders(options: GetTradersOptions = {}): Promise<Trade
 
   const db = getDatabaseConnection().getDatabase();
 
-  const normalizedSortBy = sortBy === 'winRate' ? 'winrate' : sortBy === 'equity' ? 'trades' : sortBy;
+  const normalizedSortBy =
+    sortBy === 'winRate' ? 'winrate' : sortBy === 'equity' ? 'trades' : sortBy;
   const normalizedTimeframe = timeframe === '90d' ? '30d' : timeframe;
 
   // Map sortBy to column

@@ -37,3 +37,4 @@ const server = app.listen(PORT, () => {
 const wsServer = new WebSocketServer({ server });
 
 export { app, server };
+export type { AppRouter } from './routes';

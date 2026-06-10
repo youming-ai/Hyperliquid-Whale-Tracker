@@ -70,7 +70,9 @@ function TraderDetailPage() {
 
   // Fetch trader positions
   // @ts-expect-error - AppRouter is any type until proper type generation is set up
-  const { data: positions = [], isLoading: isLoadingPositions } = trpc.traders.positions.useQuery({ address });
+  const { data: positions = [], isLoading: isLoadingPositions } = trpc.traders.positions.useQuery({
+    address,
+  });
 
   // Fetch trader trades
   const { data: tradesData, isLoading: isLoadingTrades } =
@@ -161,10 +163,10 @@ function TraderDetailPage() {
             negative
           />
           <StatCard label="Total Trades" value={`${trader?.totalTrades?.toLocaleString()}`} />
-            <StatCard
-              label="Avg Position Size"
-              value={`$${formatCompactNumber(trader?.avgPositionSizeUsd ?? 0)}`}
-            />
+          <StatCard
+            label="Avg Position Size"
+            value={`$${formatCompactNumber(trader?.avgPositionSizeUsd ?? 0)}`}
+          />
         </div>
       </div>
 
@@ -231,8 +233,12 @@ function TraderDetailPage() {
                     <td className="px-4 py-3 font-medium">{position.symbol}</td>
                     <td className="px-4 py-3 capitalize">{position.side}</td>
                     <td className="px-4 py-3 text-right">{position.quantity}</td>
-                    <td className="px-4 py-3 text-right">${position.positionValueUsd.toLocaleString()}</td>
-                    <td className="px-4 py-3 text-right">${position.unrealizedPnl.toLocaleString()}</td>
+                    <td className="px-4 py-3 text-right">
+                      ${position.positionValueUsd.toLocaleString()}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      ${position.unrealizedPnl.toLocaleString()}
+                    </td>
                   </tr>
                 ))}
               </tbody>

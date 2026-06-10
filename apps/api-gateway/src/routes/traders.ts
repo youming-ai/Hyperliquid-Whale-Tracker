@@ -215,6 +215,7 @@ export const tradersRouter = t.router({
   health: publicProcedure.query(async () => {
     return {
       status: 'healthy',
+      database: 'pending', // TODO: Wire up database health check
       timestamp: new Date().toISOString(),
     };
   }),

@@ -1,8 +1,4 @@
-import {
-  MarketOverviewSchema,
-  OHLCVSchema,
-  HeatmapBinSchema,
-} from '@hyperdash/shared-types';
+import { HeatmapBinSchema, MarketOverviewSchema, OHLCVSchema } from '@hyperdash/shared-types';
 import { z } from 'zod';
 import t from '../trpc';
 import { NotFoundError } from '../utils/errors';

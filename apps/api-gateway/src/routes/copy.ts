@@ -7,13 +7,13 @@ import {
   traderPositions,
   traderStats,
 } from '@hyperdash/database';
-import { and, desc, eq, sql } from 'drizzle-orm';
 import { TRPCError } from '@trpc/server';
+import { and, desc, eq, sql } from 'drizzle-orm';
 import { z } from 'zod';
-import { getAiRecommendations } from '../services/ai-recommendations';
-import * as copyService from '../services/copy-trading';
-import { getDatabaseConnection } from '../services/connection';
 import { generateAgentWallet } from '../services/agent-wallets';
+import { getAiRecommendations } from '../services/ai-recommendations';
+import { getDatabaseConnection } from '../services/connection';
+import * as copyService from '../services/copy-trading';
 import { getEncryptionKey } from '../services/key-management';
 
 /**
@@ -438,9 +438,7 @@ export const copyRouter = t.router({
         const strategies = await db
           .select()
           .from(copyStrategies)
-          .where(
-            and(eq(copyStrategies.id, input.strategyId), eq(copyStrategies.userId, userId)),
-          )
+          .where(and(eq(copyStrategies.id, input.strategyId), eq(copyStrategies.userId, userId)))
           .limit(1);
         currentStrategy = strategies[0] || null;
       }
@@ -497,9 +495,13 @@ export const copyRouter = t.router({
           },
           recommendations: recommendation.traders,
           reasoning: recommendation.overallReasoning,
-          confidence: recommendation.traders.length > 0
-            ? (recommendation.traders.reduce((sum, t) => sum + t.confidence, 0) / recommendation.traders.length).toString()
-            : '0',
+          confidence:
+            recommendation.traders.length > 0
+              ? (
+                  recommendation.traders.reduce((sum, t) => sum + t.confidence, 0) /
+                  recommendation.traders.length
+                ).toString()
+              : '0',
           status: 'pending',
         })
         .returning();
