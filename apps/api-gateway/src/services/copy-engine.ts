@@ -51,7 +51,7 @@ export class CopyTradingEngine {
   private db = getDatabaseConnection().getDatabase();
   private nonceCounter = 0;
 
-  constructor(config: ExecutionConfig = {}) {
+  constructor(config?: Partial<ExecutionConfig>) {
     this.config = {
       executionInterval: 5, // 5 seconds
       maxConcurrentStrategies: 10,

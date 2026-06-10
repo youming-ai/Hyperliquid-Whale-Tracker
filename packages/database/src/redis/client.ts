@@ -49,7 +49,6 @@ export class RedisConnection {
         password: this.config.password,
         db: this.config.database,
         maxRetriesPerRequest: this.config.maxRetries,
-        retryDelayOnFailover: this.config.retryDelayOnFailover,
         lazyConnect: this.config.lazyConnect,
         keyPrefix: this.config.keyPrefix,
         // Connection settings
@@ -57,10 +56,8 @@ export class RedisConnection {
         commandTimeout: 5000,
         // Performance settings
         enableOfflineQueue: false,
-        maxMemoryPolicy: 'allkeys-lru',
         // Cluster settings (if needed in future)
         enableReadyCheck: true,
-        maxLoadingTimeout: 0,
         // Event handlers
         reconnectOnError: (err) => {
           const targetError = 'READONLY';

@@ -1,4 +1,4 @@
-import { logger } from '../utils/logger';
+import logger from '../utils/logger';
 import type { RedisClient } from './redis';
 
 export interface CacheOptions {
@@ -168,7 +168,7 @@ export class HyperDashCache {
       this.stats.misses++;
       return null;
     } catch (error) {
-      logger.error(`Cache GET error for key ${key}:`, error);
+      logger.error(`Cache GET error for key ${key}:`, error as Error);
       this.stats.misses++;
       return null;
     }
@@ -201,7 +201,7 @@ export class HyperDashCache {
 
       logger.debug(`Cache SET: ${key} (TTL: ${ttl}s, Tags: ${tags.join(', ')})`);
     } catch (error) {
-      logger.error(`Cache SET error for key ${key}:`, error);
+      logger.error(`Cache SET error for key ${key}:`, error as Error);
       throw error;
     }
   }
@@ -214,7 +214,7 @@ export class HyperDashCache {
       // Remove from Redis
       return await this.redis.del(key);
     } catch (error) {
-      logger.error(`Cache DEL error for key ${key}:`, error);
+      logger.error(`Cache DEL error for key ${key}:`, error as Error);
       return 0;
     }
   }
@@ -230,7 +230,7 @@ export class HyperDashCache {
       // Check Redis
       return await this.redis.exists(key);
     } catch (error) {
-      logger.error(`Cache EXISTS error for key ${key}:`, error);
+      logger.error(`Cache EXISTS error for key ${key}:`, error as Error);
       return false;
     }
   }
@@ -264,7 +264,7 @@ export class HyperDashCache {
       logger.info(`Invalidated ${deletedCount} keys for tag: ${tag}`);
       return deletedCount;
     } catch (error) {
-      logger.error(`Cache invalidation error for tag ${tag}:`, error);
+      logger.error(`Cache invalidation error for tag ${tag}:`, error as Error);
       return 0;
     }
   }
@@ -284,7 +284,7 @@ export class HyperDashCache {
       // Remove from Redis
       return await this.redis.getClient().del(...keys);
     } catch (error) {
-      logger.error(`Cache pattern invalidation error for pattern ${pattern}:`, error);
+      logger.error(`Cache pattern invalidation error for pattern ${pattern}:`, error as Error);
       return 0;
     }
   }
@@ -303,7 +303,7 @@ export class HyperDashCache {
             logger.debug(`Pre-warming cache for ${key}`);
           }
         } catch (error) {
-          logger.error(`Error warming cache for ${symbol}:${interval}:`, error);
+          logger.error(`Error warming cache for ${symbol}:${interval}:`, error as Error);
         }
       }
     }
@@ -317,7 +317,7 @@ export class HyperDashCache {
         logger.debug('Pre-warming trader rankings cache');
       }
     } catch (error) {
-      logger.error('Error warming trader rankings cache:', error);
+      logger.error('Error warming trader rankings cache:', error as Error);
     }
   }
 
@@ -345,7 +345,7 @@ export class HyperDashCache {
         keyspace: keyspace,
       };
     } catch (error) {
-      logger.error('Error getting Redis stats:', error);
+      logger.error('Error getting Redis stats:', error as Error);
       return null;
     }
   }
@@ -377,7 +377,7 @@ export class HyperDashCache {
       await this.redis.flushdb();
       logger.info('All cache cleared');
     } catch (error) {
-      logger.error('Error clearing cache:', error);
+      logger.error('Error clearing cache:', error as Error);
       throw error;
     }
   }
@@ -398,7 +398,7 @@ export class HyperDashCache {
       await this.set(key, value, options);
       return value;
     } catch (error) {
-      logger.error(`Error in getOrSet for key ${key}:`, error);
+      logger.error(`Error in getOrSet for key ${key}:`, error as Error);
       throw error;
     }
   }

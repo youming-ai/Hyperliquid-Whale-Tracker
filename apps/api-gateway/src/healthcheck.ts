@@ -40,10 +40,10 @@ const checkDatabase = async () => {
       lastCheck: new Date().toISOString(),
     };
   } catch (error) {
-    logger.error('Database health check failed:', error);
+    logger.error('Database health check failed:', error instanceof Error ? error : undefined);
     return {
       status: 'unhealthy',
-      error: error.message,
+      error: error instanceof Error ? error.message : 'Unknown error',
       lastCheck: new Date().toISOString(),
     };
   }
@@ -58,10 +58,10 @@ const checkRedis = async () => {
       lastCheck: new Date().toISOString(),
     };
   } catch (error) {
-    logger.error('Redis health check failed:', error);
+    logger.error('Redis health check failed:', error instanceof Error ? error : undefined);
     return {
       status: 'unhealthy',
-      error: error.message,
+      error: error instanceof Error ? error.message : 'Unknown error',
       lastCheck: new Date().toISOString(),
     };
   }
@@ -76,10 +76,10 @@ const checkKafka = async () => {
       lastCheck: new Date().toISOString(),
     };
   } catch (error) {
-    logger.error('Kafka health check failed:', error);
+    logger.error('Kafka health check failed:', error instanceof Error ? error : undefined);
     return {
       status: 'unhealthy',
-      error: error.message,
+      error: error instanceof Error ? error.message : 'Unknown error',
       lastCheck: new Date().toISOString(),
     };
   }
@@ -97,10 +97,10 @@ const checkExternalAPIs = async () => {
       lastCheck: new Date().toISOString(),
     };
   } catch (error) {
-    logger.error('External API health check failed:', error);
+    logger.error('External API health check failed:', error instanceof Error ? error : undefined);
     return {
       status: 'unhealthy',
-      error: error.message,
+      error: error instanceof Error ? error.message : 'Unknown error',
       lastCheck: new Date().toISOString(),
     };
   }
@@ -117,7 +117,7 @@ const checkHyperliquidAPI = async () => {
   } catch (error) {
     return {
       status: 'unhealthy',
-      error: error.message,
+      error: error instanceof Error ? error.message : 'Unknown error',
       lastCheck: new Date().toISOString(),
     };
   }
@@ -136,7 +136,7 @@ const server = http.createServer(async (req, res) => {
 
     res.end(JSON.stringify(healthData, null, 2));
   } catch (error) {
-    logger.error('Health check server error:', error);
+    logger.error('Health check server error:', error instanceof Error ? error : undefined);
     res.writeHead(500, { 'Content-Type': 'application/json' });
     res.end(
       JSON.stringify({

@@ -1,20 +1,17 @@
 import {
   type Consumer,
-  EachMessagePayload,
+  type EachMessagePayload,
   Kafka,
   type KafkaMessage,
   type Producer,
+  type SASLOptions,
 } from 'kafkajs';
 
 export interface KafkaConfig {
   brokers: string[];
   clientId: string;
   ssl?: boolean;
-  sasl?: {
-    mechanism: 'plain' | 'scram-sha-256' | 'scram-sha-512';
-    username: string;
-    password: string;
-  };
+  sasl?: SASLOptions;
   connectionTimeout?: number;
   requestTimeout?: number;
   retry?: {
@@ -37,9 +34,7 @@ export interface ConsumerConfig {
   heartbeatInterval?: number;
   maxWaitTimeInMs?: number;
   allowAutoTopicCreation?: boolean;
-  autoOffsetReset?: 'earliest' | 'latest';
-  autoCommit?: boolean;
-  autoCommitInterval?: number;
+  fromBeginning?: boolean;
 }
 
 export class KafkaManager {
@@ -198,7 +193,7 @@ export class KafkaManager {
         })),
       }));
 
-      await this.producer.sendBatch(batchMessages);
+      await this.producer.sendBatch({ topicMessages: batchMessages });
 
       const totalMessages = topicMessages.reduce((sum, { messages }) => sum + messages.length, 0);
       console.log(`📤 Sent batch of ${totalMessages} messages to ${topicMessages.length} topics`);
@@ -232,15 +227,12 @@ export class KafkaManager {
         heartbeatInterval: config.heartbeatInterval || 3000,
         maxWaitTimeInMs: config.maxWaitTimeInMs || 5000,
         allowAutoTopicCreation: config.allowAutoTopicCreation || false,
-        autoOffsetReset: config.autoOffsetReset || 'latest',
-        autoCommit: config.autoCommit !== false,
-        autoCommitInterval: config.autoCommitInterval || 5000,
       });
 
       await consumer.connect();
       console.log(`✅ Consumer ${consumerId} connected`);
 
-      await consumer.subscribe({ topics });
+      await consumer.subscribe({ topics, fromBeginning: config.fromBeginning || false });
       console.log(`✅ Consumer ${consumerId} subscribed to topics: [${topics.join(', ')}]`);
 
       // Start consuming messages
@@ -316,12 +308,12 @@ export class KafkaManager {
     topic,
     partitions = 1,
     replicas = 1,
-    config: topicConfig = {},
+    configEntries = [],
   }: {
     topic: string;
     partitions?: number;
     replicas?: number;
-    config?: Record<string, string>;
+    configEntries?: Array<{ name: string; value: string }>;
   }): Promise<void> {
     const admin = this.kafka.admin();
 
@@ -334,7 +326,7 @@ export class KafkaManager {
             topic,
             numPartitions: partitions,
             replicationFactor: replicas,
-            topicConfig,
+            configEntries,
           },
         ],
       });

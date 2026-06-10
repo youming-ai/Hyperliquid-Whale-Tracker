@@ -2,14 +2,6 @@ import { TRPCError } from '@trpc/server';
 import { jwtVerify, SignJWT } from 'jose';
 import type { AuthContext, Context } from '../types';
 
-export interface AuthContext {
-  userId: string;
-  walletAddr: string;
-  kycLevel: number;
-  email?: string;
-  permissions: string[];
-}
-
 export interface JWTPayload {
   userId: string;
   walletAddr: string;
@@ -45,7 +37,7 @@ class TokenManager {
       exp: now + 24 * 60 * 60, // 24 hours
     };
 
-    return await new SignJWT(fullPayload)
+    return await new SignJWT(fullPayload as any)
       .setProtectedHeader({ alg: 'HS256' })
       .setIssuer(this.issuer)
       .setAudience(this.audience)
@@ -61,7 +53,7 @@ class TokenManager {
         audience: this.audience,
       });
 
-      return payload as JWTPayload;
+      return payload as unknown as JWTPayload;
     } catch (error) {
       if (error instanceof Error) {
         throw new Error(`Invalid token: ${error.message}`);

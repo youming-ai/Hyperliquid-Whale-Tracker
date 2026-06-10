@@ -1,12 +1,28 @@
 import {
-  HeatmapParamsSchema,
-  MarketOverviewParamsSchema,
-  OHLCVParamsSchema,
-  schemas,
+  MarketOverviewSchema,
+  OHLCVSchema,
+  HeatmapBinSchema,
 } from '@hyperdash/shared-types';
 import { z } from 'zod';
-import { t } from '../trpc';
+import t from '../trpc';
 import { NotFoundError } from '../utils/errors';
+
+// Input schemas
+const MarketOverviewParamsSchema = z.object({
+  symbol: z.string(),
+});
+
+const OHLCVParamsSchema = z.object({
+  symbol: z.string(),
+  timeframe: z.string(),
+  limit: z.number().default(100),
+});
+
+const HeatmapParamsSchema = z.object({
+  symbol: z.string(),
+  window: z.string(),
+  binCount: z.number().default(50),
+});
 
 export const marketRouter = t.router({
   // Market Overview
@@ -15,7 +31,7 @@ export const marketRouter = t.router({
     const { symbol } = input;
 
     // Mock data for now
-    return schemas.MarketOverview.parse({
+    return MarketOverviewSchema.parse({
       symbol,
       exchange: 'hyperliquid',
       timestamp: new Date().toISOString(),
@@ -47,7 +63,7 @@ export const marketRouter = t.router({
       tradeCount: Math.floor(100 + Math.random() * 400),
     }));
 
-    return data.map((item) => schemas.OHLCV.parse(item));
+    return data.map((item) => OHLCVSchema.parse(item));
   }),
 
   // Liquidation Heatmap
@@ -68,6 +84,6 @@ export const marketRouter = t.router({
       };
     });
 
-    return data.map((item) => schemas.HeatmapBin.parse(item));
+    return data.map((item) => HeatmapBinSchema.parse(item));
   }),
 });

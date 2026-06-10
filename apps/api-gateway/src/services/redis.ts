@@ -1,12 +1,10 @@
-import Redis from 'ioredis';
-import type { Logger } from 'winston';
+import Redis, { type ChainableCommander } from 'ioredis';
 
 export interface RedisConfig {
   host: string;
   port: number;
   password?: string;
   db?: number;
-  retryDelayOnFailover?: number;
   maxRetriesPerRequest?: number;
   lazyConnect?: boolean;
   keepAlive?: number;
@@ -15,10 +13,10 @@ export interface RedisConfig {
 
 export class RedisClient {
   private client: Redis;
-  private logger: Logger;
+  private logger: any;
   private config: RedisConfig;
 
-  constructor(config: RedisConfig, logger: Logger) {
+  constructor(config: RedisConfig, logger: any) {
     this.config = config;
     this.logger = logger;
     this.client = new Redis({
@@ -26,16 +24,13 @@ export class RedisClient {
       port: config.port,
       password: config.password,
       db: config.db || 0,
-      retryDelayOnFailover: config.retryDelayOnFailover || 100,
       maxRetriesPerRequest: config.maxRetriesPerRequest || 3,
-      lazyConnect: config.lazyConnect || true,
+      lazyConnect: config.lazyConnect ?? true,
       keepAlive: config.keepAlive || 30000,
       family: config.family || 4,
       commandTimeout: 5000,
       connectTimeout: 10000,
       enableReadyCheck: true,
-      maxLoadingTimeout: 0,
-      lazyConnect: true,
       keyPrefix: 'hyperdash:',
       reconnectOnError: (err) => {
         const targetError = 'READONLY';
@@ -63,7 +58,7 @@ export class RedisClient {
       this.logger.warn('Redis client connection closed');
     });
 
-    this.client.on('reconnecting', (ms) => {
+    this.client.on('reconnecting', (ms: number) => {
       this.logger.info(`Redis client reconnecting in ${ms}ms`);
     });
 
@@ -337,7 +332,10 @@ export class RedisClient {
 
   async zrange(key: string, start: number, stop: number, withScores = false): Promise<string[]> {
     try {
-      return await this.client.zrange(key, start, stop, withScores ? 'WITHSCORES' : undefined);
+      if (withScores) {
+        return await this.client.zrange(key, start, stop, 'WITHSCORES');
+      }
+      return await this.client.zrange(key, start, stop);
     } catch (error) {
       this.logger.error(`Redis ZRANGE error for key ${key}:`, error);
       throw error;
@@ -346,7 +344,10 @@ export class RedisClient {
 
   async zrevrange(key: string, start: number, stop: number, withScores = false): Promise<string[]> {
     try {
-      return await this.client.zrevrange(key, start, stop, withScores ? 'WITHSCORES' : undefined);
+      if (withScores) {
+        return await this.client.zrevrange(key, start, stop, 'WITHSCORES');
+      }
+      return await this.client.zrevrange(key, start, stop);
     } catch (error) {
       this.logger.error(`Redis ZREVRANGE error for key ${key}:`, error);
       throw error;
@@ -363,12 +364,12 @@ export class RedisClient {
   }
 
   // Pipeline operations
-  createPipeline(): Redis.Pipeline {
+  createPipeline(): ChainableCommander {
     return this.client.pipeline();
   }
 
   // Multi/transaction operations
-  multi(): Redis.Pipeline {
+  multi(): ChainableCommander {
     return this.client.multi();
   }
 
@@ -382,12 +383,12 @@ export class RedisClient {
     }
   }
 
-  subscribe(channel: string): Redis {
-    return this.client.subscribe(channel);
+  subscribe(...channels: string[]): Promise<number> {
+    return this.client.subscribe(...channels) as Promise<number>;
   }
 
-  unsubscribe(channel: string): Redis {
-    return this.client.unsubscribe(channel);
+  unsubscribe(...channels: string[]): Promise<number> {
+    return this.client.unsubscribe(...channels) as Promise<number>;
   }
 
   // Utility methods
@@ -411,7 +412,10 @@ export class RedisClient {
 
   async info(section?: string): Promise<string> {
     try {
-      return await this.client.info(section);
+      if (section) {
+        return await this.client.info(section);
+      }
+      return await this.client.info();
     } catch (error) {
       this.logger.error('Redis INFO error:', error);
       throw error;

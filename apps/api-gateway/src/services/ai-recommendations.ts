@@ -1,14 +1,17 @@
-import OpenAI from 'openai';
+// Optional OpenAI integration - requires OPENAI_API_KEY environment variable
+// import OpenAI from 'openai';
 
-let openaiClient: OpenAI | null = null;
+let openaiClient: any = null;
 
-function getOpenAIClient(): OpenAI {
+function getOpenAIClient(): any {
   if (!openaiClient) {
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
       throw new Error('OPENAI_API_KEY not configured');
     }
-    openaiClient = new OpenAI({ apiKey });
+    // Dynamic import for optional dependency
+    // openaiClient = new OpenAI({ apiKey });
+    throw new Error('OpenAI integration not available - install openai package');
   }
   return openaiClient;
 }
@@ -150,7 +153,7 @@ export function parseAiResponse(response: string): AiRecommendationOutput {
     }
   }
 
-  return parsed as AiRecommendationOutput;
+  return parsed as unknown as AiRecommendationOutput;
 }
 
 export async function getAiRecommendations(

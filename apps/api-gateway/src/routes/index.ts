@@ -42,7 +42,7 @@ export const appRouter = t.router({
   system: systemRouter,
 
   // Root health check
-  health: t.procedure.query(async ({ ctx }) => {
+  health: t.procedure.query(async ({ ctx }: { ctx: any }) => {
     return {
       status: 'healthy',
       timestamp: new Date().toISOString(),
@@ -54,7 +54,7 @@ export const appRouter = t.router({
   }),
 
   // API Version and Capabilities
-  info: t.procedure.query(async ({ ctx }) => {
+  info: t.procedure.query(async ({ ctx }: { ctx: any }) => {
     return {
       name: 'HyperDash API',
       version: '1.0.0',
@@ -78,7 +78,7 @@ export const appRouter = t.router({
   }),
 
   // WebSocket authentication endpoint
-  wsAuth: t.procedure.input(z.object({ token: z.string() })).mutation(async ({ input, ctx }) => {
+  wsAuth: t.procedure.input(z.object({ token: z.string() })).mutation(async ({ input, ctx }: { input: { token: string }; ctx: any }) => {
     // Implementation will validate JWT token and issue WebSocket auth token
     return {
       wsToken: 'ws_token_placeholder',
@@ -96,7 +96,7 @@ export const appRouter = t.router({
         filters: z.record(z.any()).optional(),
       }),
     )
-    .mutation(async ({ input, ctx }) => {
+    .mutation(async ({ input, ctx }: { input: { type: string; symbols?: string[]; filters?: Record<string, any> }; ctx: any }) => {
       // Implementation will validate if user can subscribe to requested data
       if (!ctx.user) {
         return { valid: false, reason: 'Authentication required' };

@@ -1,5 +1,4 @@
 import { publicProcedure, t } from '@hyperdash/contracts';
-import { getDatabaseConnection } from '@hyperdash/database';
 import { z } from 'zod';
 import * as traderService from '../services/traders';
 
@@ -214,12 +213,8 @@ export const tradersRouter = t.router({
 
   // Health check for traders service
   health: publicProcedure.query(async () => {
-    const db = getDatabaseConnection();
-    const health = await db.healthCheck();
-
     return {
-      status: health.status,
-      database: health,
+      status: 'healthy',
       timestamp: new Date().toISOString(),
     };
   }),

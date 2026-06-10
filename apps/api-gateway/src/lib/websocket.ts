@@ -1,11 +1,13 @@
-import { WebSocket, WebSocketServer } from 'ws';
+import { WebSocket, WebSocketServer as WSServer } from 'ws';
 
-export class WebSocketServer {
-  private wss: WebSocketServer;
+export { WSServer as WebSocketServer };
+
+export class WebSocketManager {
+  private wss: WSServer;
   private clients: Map<string, WebSocket> = new Map();
 
   constructor(server: any) {
-    this.wss = new WebSocketServer({
+    this.wss = new WSServer({
       server,
       path: '/ws',
     });

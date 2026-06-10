@@ -45,7 +45,7 @@ export async function getTraders(options: GetTradersOptions = {}): Promise<Trade
   const normalizedTimeframe = timeframe === '90d' ? '30d' : timeframe;
 
   // Map sortBy to column
-  const sortColumnMap: Record<SortBy, string> = {
+  const sortColumnMap: Record<SortBy, any> = {
     pnl:
       normalizedTimeframe === '7d'
         ? traderStats.pnl7d
@@ -72,11 +72,11 @@ export async function getTraders(options: GetTradersOptions = {}): Promise<Trade
         : normalizedTimeframe === '30d'
           ? traderStats.pnl30d
           : traderStats.pnlAll;
-    conditions.push(gte(column, minPnl));
+    conditions.push(gte(column, minPnl.toString()));
   }
 
   if (minWinrate !== undefined) {
-    conditions.push(gte(traderStats.winrate, minWinrate));
+    conditions.push(gte(traderStats.winrate, minWinrate.toString()));
   }
 
   if (minTrades !== undefined) {
@@ -121,9 +121,8 @@ export async function getTraders(options: GetTradersOptions = {}): Promise<Trade
   // Add rank
   return traders.map((t, i) => ({
     ...t,
-    traderId: t.traderId,
     rank: offset + i + 1,
-  }));
+  })) as TraderWithRank[];
 }
 
 /**
@@ -396,9 +395,8 @@ export async function addTraderTrade(
   const [inserted] = await db
     .insert(traderTrades)
     .values({
-      id: crypto.randomUUID(),
-      traderId: crypto.randomUUID(),
       ...trade,
+      id: crypto.randomUUID(),
     } as any)
     .returning();
 

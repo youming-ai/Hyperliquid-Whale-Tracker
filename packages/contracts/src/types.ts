@@ -1,10 +1,11 @@
 import type { inferAsyncReturnType } from '@trpc/server';
-import type { CreateHTTPContextOptions } from '@trpc/server/adapters/standalone';
 
 export interface AuthContext {
   userId: string;
   walletAddr: string;
   kycLevel: number;
+  email?: string;
+  permissions: string[];
 }
 
 export interface RequestContext {
@@ -19,7 +20,7 @@ export interface Context extends RequestContext {
   res?: any; // Response object
 }
 
-export type CreateContextOptions = CreateHTTPContextOptions<Request, Response>;
+export type CreateContextOptions = { req: any; res: any };
 
 export function createContext(opts?: CreateContextOptions): Context {
   return {

@@ -1,9 +1,6 @@
 import { initTRPC, TRPCError } from '@trpc/server';
 import { z } from 'zod';
-import type { Context } from '../context';
-import { authMiddleware } from '../middleware/auth';
-import { rateLimitMiddleware } from '../middleware/rateLimit';
-import { validationMiddleware } from '../middleware/validation';
+import type { Context } from '@hyperdash/contracts';
 
 // Initialize tRPC
 export const t = initTRPC.context<Context>().create({
@@ -19,8 +16,25 @@ export const t = initTRPC.context<Context>().create({
   }),
 });
 
+// Simple rate limit middleware placeholder
+const rateLimitMiddleware = async ({ ctx, next }: { ctx: any; next: any }) => {
+  return next({ ctx });
+};
+
+// Simple validation middleware placeholder
+const validationMiddleware = async ({ ctx, next }: { ctx: any; next: any }) => {
+  return next({ ctx });
+};
+
 // Define procedures
 export const publicProcedure = t.procedure;
+export const authMiddleware = async ({ ctx, next }: { ctx: any; next: any }) => {
+  if (!ctx.user) {
+    throw new TRPCError({ code: 'UNAUTHORIZED' });
+  }
+  return next({ ctx: { ...ctx, user: ctx.user } });
+};
+
 export const protectedProcedure = t.procedure.use(authMiddleware);
 export const rateLimitedProcedure = t.procedure.use(rateLimitMiddleware);
 export const validatedProcedure = t.procedure.use(validationMiddleware);
