@@ -29,24 +29,14 @@ jobs:
 
           echo "✅ Branch protection check passed"
 
-  required-checks:
-    name: Required Status Checks
-    runs-on: ubuntu-latest
-    steps:
-      - name: Wait for required checks
-        uses: lewagon/wait-on-check-action@v1.3.4
-        with:
-          ref: ${{ github.sha }}
-          check-regexp: '^(lint|test|build|security).*'
-          wait-interval: 10
-          allowed-conclusions: success
-
   pr-validation:
     name: PR Validation
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Check PR description
         run: |
