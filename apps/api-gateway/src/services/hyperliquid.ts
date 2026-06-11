@@ -157,7 +157,12 @@ async function infoRequest<T>(body: Record<string, unknown>): Promise<T> {
     } catch (err) {
       clearTimeout(timeout);
       // A non-retryable HyperliquidApiError we just threw — bubble up.
-      if (err instanceof HyperliquidApiError && err.status && err.status !== 429 && err.status < 500) {
+      if (
+        err instanceof HyperliquidApiError &&
+        err.status &&
+        err.status !== 429 &&
+        err.status < 500
+      ) {
         throw err;
       }
       lastError = err;
@@ -399,8 +404,7 @@ export function fillToTraderTradeRow(
 ): TraderTradeRow {
   const isClose = fill.dir.startsWith('Close');
   // `Close Long`/`Open Long`/`Buy` → long; `Close Short`/`Open Short`/`Sell` → short.
-  const side: 'long' | 'short' =
-    fill.dir.includes('Long') || fill.dir === 'Buy' ? 'long' : 'short';
+  const side: 'long' | 'short' = fill.dir.includes('Long') || fill.dir === 'Buy' ? 'long' : 'short';
   const ts = new Date(fill.time);
 
   return {
@@ -430,7 +434,11 @@ export function fillToTraderTradeRow(
  */
 export async function fetchTraderData(
   address: string,
-): Promise<{ stats: TraderStatsSummary; fills: HyperliquidFill[]; state: HyperliquidClearinghouseState | null } | null> {
+): Promise<{
+  stats: TraderStatsSummary;
+  fills: HyperliquidFill[];
+  state: HyperliquidClearinghouseState | null;
+} | null> {
   const [fills, state] = await Promise.all([
     getUserFills(address),
     // A brand-new or non-perp address may 404 on clearinghouseState; that's

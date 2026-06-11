@@ -11,11 +11,11 @@
 
 import * as schema from '@hyperdash/database';
 import { and, eq, sql } from 'drizzle-orm';
-import { calculateCopyTargets } from './copy-targets';
-import { getDatabaseConnection } from '../services/connection';
 import { privateKeyToAccount } from 'viem/accounts';
-import { decryptKey, getEncryptionKey } from './key-management';
+import { getDatabaseConnection } from '../services/connection';
+import { calculateCopyTargets } from './copy-targets';
 import { buildMarketOrder, placeOrder } from './exchange';
+import { decryptKey, getEncryptionKey } from './key-management';
 import { checkDailyLossLimit, checkMaxOrderSize } from './safety-controls';
 
 export interface ExecutionConfig {
@@ -51,7 +51,7 @@ export class CopyTradingEngine {
   private db = getDatabaseConnection().getDatabase();
   private nonceCounter = 0;
 
-  constructor(config: ExecutionConfig = {}) {
+  constructor(config?: Partial<ExecutionConfig>) {
     this.config = {
       executionInterval: 5, // 5 seconds
       maxConcurrentStrategies: 10,
@@ -377,11 +377,11 @@ export class CopyTradingEngine {
    */
   private async executeTrades(strategy: any, deltas: PositionDelta[]): Promise<void> {
     // Get agent wallet for this strategy
-    const [agentWallet] = await this.db
+    const [agentWallet] = (await this.db
       .select()
       .from(schema.agentWallets)
       .where(eq(schema.agentWallets.id, strategy.agentWalletId))
-      .limit(1) as any[];
+      .limit(1)) as any[];
 
     if (!agentWallet?.encryptedPrivateKey) {
       console.error(`[CopyEngine] No agent wallet with private key for strategy ${strategy.id}`);

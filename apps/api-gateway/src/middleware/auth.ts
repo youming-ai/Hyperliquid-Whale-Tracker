@@ -12,7 +12,7 @@ export const authMiddleware = async ({
   next,
 }: {
   ctx: AsyncContext;
-  next: () => Promise<any>;
+  next: (opts?: { ctx: any }) => Promise<any>;
 }) => {
   try {
     // Get token from Authorization header
@@ -65,7 +65,7 @@ export const optionalAuthMiddleware = async ({
   next,
 }: {
   ctx: AsyncContext;
-  next: () => Promise<any>;
+  next: (opts?: { ctx: any }) => Promise<any>;
 }) => {
   try {
     const authHeader = ctx.req?.headers?.authorization;
@@ -101,7 +101,13 @@ export const optionalAuthMiddleware = async ({
  * KYC level validation middleware factory
  */
 export const kycLevelMiddleware = (minLevel: number) => {
-  return async ({ ctx, next }: { ctx: AsyncContext; next: () => Promise<any> }) => {
+  return async ({
+    ctx,
+    next,
+  }: {
+    ctx: AsyncContext;
+    next: (opts?: { ctx: any }) => Promise<any>;
+  }) => {
     if (!ctx.user) {
       throw new TRPCError({
         code: 'UNAUTHORIZED',
@@ -133,7 +139,7 @@ export const adminMiddleware = async ({
   next,
 }: {
   ctx: AsyncContext;
-  next: () => Promise<any>;
+  next: (opts?: { ctx: any }) => Promise<any>;
 }) => {
   if (!ctx.user) {
     throw new TRPCError({
@@ -166,9 +172,15 @@ export const userTierRateLimitMiddleware = (limits: {
   premium: number;
   enterprise: number;
 }) => {
-  return async ({ ctx, next }: { ctx: AsyncContext; next: () => Promise<any> }) => {
-    const tier = ctx.user?.tier || 'freemium';
-    const limit = limits[tier];
+  return async ({
+    ctx,
+    next,
+  }: {
+    ctx: AsyncContext;
+    next: (opts?: { ctx: any }) => Promise<any>;
+  }) => {
+    const tier = ((ctx.user as any)?.tier as keyof typeof limits) || 'freemium';
+    const limit = limits[tier] || limits.freemium;
 
     // Implementation would check actual rate limits using Redis
     // For now, we'll just pass through
@@ -190,7 +202,13 @@ export const userTierRateLimitMiddleware = (limits: {
  * Resource access validation middleware
  */
 export const resourceAccessMiddleware = (resource: string, action: string) => {
-  return async ({ ctx, next }: { ctx: AsyncContext; next: () => Promise<any> }) => {
+  return async ({
+    ctx,
+    next,
+  }: {
+    ctx: AsyncContext;
+    next: (opts?: { ctx: any }) => Promise<any>;
+  }) => {
     if (!ctx.user) {
       throw new TRPCError({
         code: 'UNAUTHORIZED',

@@ -34,12 +34,9 @@ export class CacheManager {
 
       // Add to tag sets for invalidation
       if (tags.length > 0) {
-        const tagSets = tags.map((tag) => `tag:${tag}`);
-        await this.redis.getIORedisClient().sadd(...tagSets, key);
-
-        // Set TTL for tag sets as well
-        for (const tagSet of tagSets) {
-          await this.redis.getIORedisClient().expire(tagSet, ttl);
+        for (const tag of tags) {
+          await this.redis.getIORedisClient().sadd(`tag:${tag}`, key);
+          await this.redis.getIORedisClient().expire(`tag:${tag}`, ttl);
         }
       }
 

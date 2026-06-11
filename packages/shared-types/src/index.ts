@@ -90,3 +90,126 @@ export type OHLCV = z.infer<typeof OHLCVSchema>;
 export type HeatmapBin = z.infer<typeof HeatmapBinSchema>;
 export type Trader = z.infer<typeof TraderSchema>;
 export type CopyStrategy = z.infer<typeof CopyStrategySchema>;
+
+// Additional schemas used by API routes
+export const SystemHealth = z.object({
+  overall: z.string(),
+  timestamp: z.string(),
+  version: z.string(),
+  uptime: z.number(),
+  components: z.record(z.any()),
+  metrics: z.record(z.any()),
+});
+
+export const SystemMetrics = z.object({
+  timeframe: z.string(),
+  granularity: z.string(),
+  generatedAt: z.string(),
+  system: z.record(z.any()),
+  application: z.record(z.any()),
+});
+
+export const SystemStatus = z.object({
+  timestamp: z.string(),
+  services: z.record(z.any()),
+  alerts: z.array(z.any()),
+  recentEvents: z.array(z.any()),
+});
+
+export const UserProfile = z.object({
+  userId: z.string(),
+  email: z.string().optional(),
+  walletAddr: z.string().optional(),
+  kycLevel: z.number().optional(),
+  status: z.string().optional(),
+  preferences: z.record(z.any()).optional(),
+  subscription: z.record(z.any()).optional(),
+  stats: z.record(z.any()).optional(),
+  createdAt: z.string().optional(),
+  updatedAt: z.string().optional(),
+});
+
+export const AgentWallet = z.object({
+  id: z.string(),
+  userId: z.string().optional(),
+  exchange: z.string().optional(),
+  address: z.string().optional(),
+  status: z.string().optional(),
+  minOrderUsd: z.number().optional(),
+  maxLeverage: z.number().optional(),
+  permissions: z.record(z.any()).optional(),
+  metadata: z.record(z.any()).optional(),
+  positions: z.array(z.any()).optional(),
+  balance: z.record(z.any()).optional(),
+  createdAt: z.string().optional(),
+  updatedAt: z.string().optional(),
+});
+
+export const PriceAlert = z.object({
+  id: z.string(),
+  userId: z.string().optional(),
+  symbol: z.string().optional(),
+  type: z.string().optional(),
+  targetPrice: z.number().optional(),
+  percentChange: z.number().optional(),
+  status: z.string().optional(),
+  repeat: z.boolean().optional(),
+  expiresAt: z.string().optional(),
+  triggeredAt: z.string().optional(),
+  createdAt: z.string().optional(),
+  updatedAt: z.string().optional(),
+});
+
+export const Notification = z.object({
+  id: z.string(),
+  userId: z.string().optional(),
+  type: z.string().optional(),
+  title: z.string().optional(),
+  message: z.string().optional(),
+  data: z.record(z.any()).optional(),
+  read: z.boolean().optional(),
+  createdAt: z.string().optional(),
+});
+
+export const UserTrade = z.object({
+  id: z.string(),
+  userId: z.string().optional(),
+  symbol: z.string().optional(),
+  side: z.string().optional(),
+  size: z.union([z.string(), z.number()]).optional(),
+  price: z.number().optional(),
+  fee: z.number().optional(),
+  realizedPnl: z.number().optional(),
+  isCopyTrade: z.boolean().optional(),
+  strategyId: z.string().optional(),
+  timestamp: z.string().optional(),
+});
+
+export const UserStatistics = z.object({
+  timeframe: z.string().optional(),
+  periodStart: z.string().optional(),
+  periodEnd: z.string().optional(),
+  overview: z.record(z.any()).optional(),
+  copyTrading: z.record(z.any()).optional(),
+  performance: z.record(z.any()).optional(),
+  risk: z.record(z.any()).optional(),
+  engagement: z.record(z.any()).optional(),
+});
+
+// Schemas namespace for convenient access
+export const schemas = {
+  SystemHealth,
+  SystemMetrics,
+  SystemStatus,
+  UserProfile,
+  AgentWallet,
+  PriceAlert,
+  Notification,
+  UserTrade,
+  UserStatistics,
+  MarketOverview: MarketOverviewSchema,
+  OHLCV: OHLCVSchema,
+  HeatmapBin: HeatmapBinSchema,
+  Trader: TraderSchema,
+  CopyStrategy: CopyStrategySchema,
+};

@@ -1,5 +1,12 @@
-import { protectedProcedure, t } from '@hyperdash/contracts';
-import { schemas } from '@hyperdash/shared-types';
+import { kycProcedure, protectedProcedure, t } from '@hyperdash/contracts';
+import {
+  AgentWallet,
+  Notification,
+  PriceAlert,
+  UserProfile,
+  UserStatistics,
+  UserTrade,
+} from '@hyperdash/shared-types';
 import { z } from 'zod';
 
 /**
@@ -54,7 +61,7 @@ export const userRouter = t.router({
       updatedAt: new Date().toISOString(),
     };
 
-    return schemas.UserProfile.parse(mockProfile);
+    return UserProfile.parse(mockProfile);
   }),
 
   // Update user profile
@@ -158,7 +165,7 @@ export const userRouter = t.router({
       },
     ];
 
-    return mockWallets.map((wallet) => schemas.AgentWallet.parse(wallet));
+    return mockWallets.map((wallet) => AgentWallet.parse(wallet));
   }),
 
   // Add new agent wallet
@@ -199,7 +206,7 @@ export const userRouter = t.router({
       };
 
       console.log(`Added wallet for user ${userId}:`, newWallet);
-      return schemas.AgentWallet.parse(newWallet);
+      return AgentWallet.parse(newWallet);
     }),
 
   // Get user's price alerts
@@ -242,7 +249,7 @@ export const userRouter = t.router({
 
       const filtered =
         status === 'all' ? mockAlerts : mockAlerts.filter((alert) => alert.status === status);
-      return filtered.slice(0, limit).map((alert) => schemas.PriceAlert.parse(alert));
+      return filtered.slice(0, limit).map((alert) => PriceAlert.parse(alert));
     }),
 
   // Create price alert
@@ -278,7 +285,7 @@ export const userRouter = t.router({
       };
 
       console.log(`Created alert for user ${userId}:`, newAlert);
-      return schemas.PriceAlert.parse(newAlert);
+      return PriceAlert.parse(newAlert);
     }),
 
   // Delete price alert
@@ -362,7 +369,7 @@ export const userRouter = t.router({
 
       const paginated = filtered.slice(offset, offset + limit);
       return {
-        notifications: paginated.map((notif) => schemas.Notification.parse(notif)),
+        notifications: paginated.map((notif) => Notification.parse(notif)),
         total: filtered.length,
         unread: filtered.filter((notif) => !notif.read).length,
       };
@@ -425,7 +432,7 @@ export const userRouter = t.router({
         timestamp: new Date(Date.now() - (offset + i) * 3600000).toISOString(),
       }));
 
-      return mockHistory.map((trade) => schemas.UserTrade.parse(trade));
+      return mockHistory.map((trade) => UserTrade.parse(trade));
     }),
 
   // Get user statistics
@@ -481,6 +488,6 @@ export const userRouter = t.router({
         },
       };
 
-      return schemas.UserStatistics.parse(mockStats);
+      return UserStatistics.parse(mockStats);
     }),
 });

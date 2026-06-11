@@ -189,7 +189,6 @@ export class ErrorHandler {
       field: err.path.join('.'),
       message: err.message,
       code: err.code,
-      received: err.received,
     }));
 
     throw new ValidationError('Validation failed', fieldErrors[0]?.field, {
@@ -425,23 +424,7 @@ export class ErrorLogger {
   }
 }
 
-// Re-export all error classes
-export {
-  HyperDashError,
-  NotFoundError,
-  ValidationError,
-  AuthenticationError,
-  AuthorizationError,
-  RateLimitError,
-  DatabaseError,
-  ExternalServiceError,
-  BusinessLogicError,
-  ConfigurationError,
-  NetworkError,
-  TimeoutError,
-  ConcurrencyError,
-};
-
+// Re-export all error classes - already exported at declaration
 // Legacy exports for backward compatibility
 export function handleDatabaseError(error: any): never {
   return ErrorHandler.handleDatabaseError(error);

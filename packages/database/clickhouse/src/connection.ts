@@ -44,12 +44,12 @@ export class ClickHouseConnection {
           async_insert: 1,
           wait_for_async_insert: 1,
           max_threads: 4,
-          max_insert_threads: 2,
-          max_memory_usage: 10000000000, // 10GB
+          max_insert_threads: '2',
+          max_memory_usage: '10000000000', // 10GB
         },
         compression: {
-          response: this.config.compression ? 'gzip' : 'none',
-          request: this.config.compression ? 'gzip' : 'none',
+          response: this.config.compression ?? true,
+          request: this.config.compression ?? true,
         },
       });
 
@@ -129,11 +129,11 @@ export class ClickHouseConnection {
     try {
       const result = await this.client.query({
         query,
-        format,
+        format: format as any,
         clickhouse_settings: {
           max_execution_time: 60,
-          max_result_rows: 1000000,
-          max_result_bytes: 1000000000,
+          max_result_rows: '1000000',
+          max_result_bytes: '1000000000',
           ...clickhouse_settings,
         },
         query_params,
@@ -183,9 +183,9 @@ export class ClickHouseConnection {
       const insertQuery = `INSERT INTO ${table} FORMAT ${format}`;
 
       await this.client.insert({
-        query: insertQuery,
-        values: values,
-        format,
+        table,
+        values: values as any,
+        format: format as any,
       });
 
       console.log(`✅ Inserted ${Array.isArray(values) ? values.length : 1} rows into ${table}`);
@@ -273,7 +273,8 @@ export class ClickHouseConnection {
       format: 'JSONEachRow',
     });
 
-    return result.json[0] || { size_bytes: 0, size_readable: '0 B' };
+    const rows = await result.json();
+    return (rows as any[])[0] || { size_bytes: 0, size_readable: '0 B' };
   }
 }
 

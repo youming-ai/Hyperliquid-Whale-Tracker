@@ -1,20 +1,15 @@
 // Main tRPC router and middleware exports
 
-// Re-export AppRouter type from API Gateway
-// Note: In development, this type is imported from the built API gateway
-// In production with monorepo, this would be imported directly from the API gateway package
-export type { AppRouter } from '@hyperdash/api-gateway';
-export { createAuthMiddleware } from './middleware/auth';
+// Note: For AppRouter type, import directly from source in the API gateway:
+//   import type { AppRouter } from '@hyperdash/api-gateway/src/routes';
+// Or import from the built dist after building api-gateway:
+//   import type { AppRouter } from '@hyperdash/api-gateway';
+export { createAuthContext, createAuthMiddleware } from './middleware/auth';
 export { createRateLimitMiddleware } from './middleware/rateLimit';
 export { createValidationMiddleware } from './middleware/validation';
 // Router exports
 export { marketRouter } from './routers/market';
-export {
-  kycProcedure,
-  protectedProcedure,
-  publicProcedure,
-  router,
-} from './trpc';
+export { default as t, kycProcedure, protectedProcedure, publicProcedure, router } from './trpc';
 export { type AsyncContext, type Context, createContext } from './types';
 export {
   AuthenticationError,

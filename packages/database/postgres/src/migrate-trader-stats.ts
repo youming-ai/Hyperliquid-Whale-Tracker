@@ -150,7 +150,7 @@ async function runMigrations() {
 
     await client`CREATE INDEX IF NOT EXISTS idx_ai_recommendations_user_id ON ai_recommendations(user_id);`;
     await client`CREATE INDEX IF NOT EXISTS idx_ai_recommendations_strategy_id ON ai_recommendations(strategy_id);`;
-    await client`CREATE INDEX IF NOT EXISTS idx_ai_recommendations_status ON ai_recommendations(status);`
+    await client`CREATE INDEX IF NOT EXISTS idx_ai_recommendations_status ON ai_recommendations(status);`;
 
     // Create indexes
     console.log('Creating indexes...');

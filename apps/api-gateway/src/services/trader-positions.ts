@@ -1,7 +1,7 @@
+import type * as schema from '@hyperdash/database';
 import { traderPositions } from '@hyperdash/database';
 import { and, eq, sql } from 'drizzle-orm';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
-import * as schema from '@hyperdash/database';
 import type { TraderPositionRow } from './hyperliquid';
 
 export async function replaceTraderPositions(
@@ -19,16 +19,17 @@ export async function replaceTraderPositions(
       .from(traderPositions)
       .where(eq(traderPositions.traderId, traderId));
 
-    const existingByKey = new Map(
-      existingPositions.map((p) => [`${p.symbol}:${p.side}`, p.id]),
-    );
+    const existingByKey = new Map(existingPositions.map((p) => [`${p.symbol}:${p.side}`, p.id]));
     const newKeys = new Set(rows.map((row) => `${row.symbol}:${row.side}`));
 
     for (const row of rows) {
       const key = `${row.symbol}:${row.side}`;
       const existingId = existingByKey.get(key);
       if (existingId) {
-        await tx.update(traderPositions).set(row as any).where(eq(traderPositions.id, existingId));
+        await tx
+          .update(traderPositions)
+          .set(row as any)
+          .where(eq(traderPositions.id, existingId));
       } else {
         await tx.insert(traderPositions).values(row as any);
       }

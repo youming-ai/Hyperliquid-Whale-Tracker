@@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { generateAgentWallet } from './agent-wallets';
 
 describe('agent-wallets', () => {
-  const testEncryptionKey = Buffer.from('0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef', 'hex');
+  const testEncryptionKey = Buffer.from(
+    '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
+    'hex',
+  );
 
   it('generates a wallet with address and encrypted key', () => {
     const wallet = generateAgentWallet(testEncryptionKey);

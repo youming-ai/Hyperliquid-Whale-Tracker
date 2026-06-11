@@ -116,16 +116,12 @@ export interface StrategyPerformance {
  * strategies and M = allocations per strategy, which produced 60+ queries
  * for a user with 10 strategies × 5 allocations.
  */
-async function hydrateStrategies(
-  strategies: CopyStrategy[],
-): Promise<StrategyWithAllocations[]> {
+async function hydrateStrategies(strategies: CopyStrategy[]): Promise<StrategyWithAllocations[]> {
   if (strategies.length === 0) return [];
 
   const db = getDatabaseConnection().getDatabase();
   const strategyIds = strategies.map((s) => s.id);
-  const agentWalletIds = strategies
-    .map((s) => s.agentWalletId)
-    .filter((id): id is string => !!id);
+  const agentWalletIds = strategies.map((s) => s.agentWalletId).filter((id): id is string => !!id);
 
   // 1) Every allocation for every input strategy.
   const allocationRows = await db
@@ -317,9 +313,7 @@ export function validateAllocationWeights(
       );
     }
     if (Math.abs(allocations[0].weight - 1) > 0.0001) {
-      throw new Error(
-        `single_trader allocation weight must be 1; got ${allocations[0].weight}`,
-      );
+      throw new Error(`single_trader allocation weight must be 1; got ${allocations[0].weight}`);
     }
     return;
   }
@@ -823,7 +817,8 @@ export async function upsertCopyPosition(input: UpsertCopyPositionInput): Promis
         quantity: input.quantity.toString(),
         entryPrice: input.entryPrice.toString(),
         markPrice: input.markPrice?.toString(),
-        unrealizedPnl: unrealizedPnl !== undefined ? unrealizedPnl.toString() : existing[0].unrealizedPnl,
+        unrealizedPnl:
+          unrealizedPnl !== undefined ? unrealizedPnl.toString() : existing[0].unrealizedPnl,
         leverage: input.leverage?.toString(),
         marginUsed: input.marginUsed?.toString(),
         lastUpdatedAt: new Date(),

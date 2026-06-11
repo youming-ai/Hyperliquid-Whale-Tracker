@@ -1,4 +1,4 @@
-import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
+import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres, { PostgresError } from 'postgres';
 import * as schema from './schema';
@@ -8,11 +8,13 @@ export interface DatabaseConfig {
   maxConnections?: number;
   idleTimeout?: number;
   connectTimeout?: number;
+  maxLifetime?: number;
+  prepare?: boolean;
 }
 
 export class DatabaseConnection {
   private client: postgres.Sql | null = null;
-  private db: NodePgDatabase<typeof schema> | null = null;
+  private db: PostgresJsDatabase<typeof schema> | null = null;
   private isInitialized = false;
   private config: DatabaseConfig;
 
@@ -21,6 +23,8 @@ export class DatabaseConnection {
       maxConnections: 10,
       idleTimeout: 30000,
       connectTimeout: 10000,
+      maxLifetime: 60 * 30,
+      prepare: true,
       ...config,
     };
   }
@@ -37,15 +41,8 @@ export class DatabaseConnection {
         max: this.config.maxConnections,
         idle_timeout: this.config.idleTimeout,
         connect_timeout: this.config.connectTimeout,
-        // Connection retry logic
-        retry: 3,
-        // Enable prepared statements
-        prepare: true,
-        // Set statement timeout
-        statement_timeout: 30000,
-        // Set query timeout
-        query_timeout: 30000,
-        // SSL configuration
+        max_lifetime: this.config.maxLifetime,
+        prepare: this.config.prepare,
         ssl: process.env.NODE_ENV === 'production' ? 'require' : false,
         // Connection validation
         onnotice: (notice) => {
@@ -77,7 +74,7 @@ export class DatabaseConnection {
     }
   }
 
-  getDatabase(): NodePgDatabase<typeof schema> {
+  getDatabase(): PostgresJsDatabase<typeof schema> {
     if (!this.db || !this.isInitialized) {
       throw new Error('Database not initialized. Call initialize() first.');
     }
@@ -130,7 +127,9 @@ export class DatabaseConnection {
   }
 
   // Transaction helper
-  async transaction<T>(callback: (tx: NodePgDatabase<typeof schema>) => Promise<T>): Promise<T> {
+  async transaction<T>(
+    callback: (tx: PostgresJsDatabase<typeof schema>) => Promise<T>,
+  ): Promise<T> {
     if (!this.db) {
       throw new Error('Database not initialized');
     }

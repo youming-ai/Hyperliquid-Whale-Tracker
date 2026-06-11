@@ -162,7 +162,9 @@ export class AuthService {
         tier: decoded.tier || 'freemium',
       };
     } catch (error) {
-      this.logger.warn('Access token verification failed', { error: error.message });
+      this.logger.warn('Access token verification failed', {
+        error: error instanceof Error ? error.message : String(error),
+      });
       throw new Error('Invalid access token');
     }
   }
@@ -210,7 +212,9 @@ export class AuthService {
 
       return newTokens;
     } catch (error) {
-      this.logger.warn('Refresh token verification failed', { error: error.message });
+      this.logger.warn('Refresh token verification failed', {
+        error: error instanceof Error ? error.message : String(error),
+      });
       throw new Error('Invalid refresh token');
     }
   }
@@ -441,7 +445,7 @@ export class AuthService {
     } catch (error) {
       this.logger.error('Wallet signature verification failed', {
         address,
-        error: error.message,
+        error: error instanceof Error ? error.message : String(error),
       });
       return false;
     }

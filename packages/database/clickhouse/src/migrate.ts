@@ -51,7 +51,7 @@ async function runClickHouseMigrations() {
       format: 'JSONEachRow',
     });
 
-    const tableNames = tables.json.map((row: any) => row.name);
+    const tableNames = (await tables.json<{ name: string }>()).map((row) => row.name);
     const expectedTables = [
       'market_ticks_raw',
       'market_ohlcv_1min',

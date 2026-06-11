@@ -201,7 +201,7 @@ export async function ingestTraderAddresses(
 
   try {
     // Fetch market mid-prices once for this ingestion run.
-    const mids = await getAllMids().catch(() => ({} as Record<string, string>));
+    const mids = await getAllMids().catch(() => ({}) as Record<string, string>);
 
     // Process addresses in batches
     for (let i = 0; i < addresses.length; i += concurrency) {

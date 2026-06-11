@@ -1,14 +1,29 @@
-import OpenAI from 'openai';
+// Optional OpenAI integration - dynamically loaded when available
+// Requires OPENAI_API_KEY environment variable
 
-let openaiClient: OpenAI | null = null;
+interface OpenAIClient {
+  chat: {
+    completions: {
+      create: (params: {
+        model: string;
+        messages: Array<{ role: string; content: string }>;
+        temperature: number;
+        response_format: { type: string };
+      }) => Promise<{ choices: Array<{ message?: { content?: string } }> }>;
+    };
+  };
+}
 
-function getOpenAIClient(): OpenAI {
+let openaiClient: OpenAIClient | null = null;
+
+async function getOpenAIClient(): Promise<OpenAIClient> {
   if (!openaiClient) {
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
       throw new Error('OPENAI_API_KEY not configured');
     }
-    openaiClient = new OpenAI({ apiKey });
+    const { default: OpenAI } = await import('openai');
+    openaiClient = new OpenAI({ apiKey }) as unknown as OpenAIClient;
   }
   return openaiClient;
 }
@@ -150,13 +165,13 @@ export function parseAiResponse(response: string): AiRecommendationOutput {
     }
   }
 
-  return parsed as AiRecommendationOutput;
+  return parsed as unknown as AiRecommendationOutput;
 }
 
 export async function getAiRecommendations(
   input: RecommendationInput,
 ): Promise<AiRecommendationOutput> {
-  const openai = getOpenAIClient();
+  const openai = await getOpenAIClient();
   const prompt = buildRecommendationPrompt(input);
 
   const completion = await openai.chat.completions.create({

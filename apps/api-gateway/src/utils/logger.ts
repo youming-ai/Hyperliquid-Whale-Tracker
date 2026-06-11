@@ -1,5 +1,3 @@
-import winston from 'winston';
-import 'winston-daily-rotate-file';
 import type { Request } from 'express';
 
 export interface LogContext {
@@ -27,215 +25,122 @@ export interface LoggerConfig {
   datePattern?: string;
 }
 
+const LOG_LEVELS: Record<string, number> = {
+  error: 0,
+  warn: 1,
+  info: 2,
+  http: 3,
+  verbose: 4,
+  debug: 5,
+  silly: 6,
+};
+
 class Logger {
-  private winston: winston.Logger;
+  private level: number;
   private context: LogContext = {};
+  private silent: boolean;
+  private format: 'json' | 'pretty';
 
   constructor(config: LoggerConfig) {
-    const transports: winston.transport[] = [];
+    this.level = LOG_LEVELS[config.level] ?? LOG_LEVELS.info;
+    this.silent = config.silent;
+    this.format = config.format;
+  }
 
-    // Console transport
-    if (config.enableConsole) {
-      transports.push(
-        new winston.transports.Console({
-          level: config.level,
-          silent: config.silent,
-          format: this.createConsoleFormat(config.format),
-        }),
-      );
-    }
+  private shouldLog(level: string): boolean {
+    if (this.silent) return false;
+    return (LOG_LEVELS[level] ?? LOG_LEVELS.info) <= this.level;
+  }
 
-    // File transports
-    if (config.enableFile) {
-      // Combined log file
-      transports.push(
-        new winston.transports.DailyRotateFile({
-          level: config.level,
-          silent: config.silent,
-          filename: 'hyperdash-%DATE%.log',
-          dirname: config.logDir || './logs',
-          datePattern: config.datePattern || 'YYYY-MM-DD',
-          maxSize: config.maxSize || '20m',
-          maxFiles: config.maxFiles || '14d',
-          format: this.createFileFormat('combined'),
-        }),
-      );
-
-      // Error-only log file
-      transports.push(
-        new winston.transports.DailyRotateFile({
-          level: 'error',
-          silent: config.silent,
-          filename: 'hyperdash-error-%DATE%.log',
-          dirname: config.logDir || './logs',
-          datePattern: config.datePattern || 'YYYY-MM-DD',
-          maxSize: config.maxSize || '20m',
-          maxFiles: config.maxFiles || '30d',
-          format: this.createFileFormat('error'),
-        }),
-      );
-
-      // Audit log file for security events
-      transports.push(
-        new winston.transports.DailyRotateFile({
-          level: 'info',
-          silent: config.silent,
-          filename: 'hyperdash-audit-%DATE%.log',
-          dirname: config.logDir || './logs',
-          datePattern: config.datePattern || 'YYYY-MM-DD',
-          maxSize: config.maxSize || '20m',
-          maxFiles: config.maxFiles || '90d',
-          format: this.createFileFormat('audit'),
-        }),
-      );
-    }
-
-    this.winston = winston.createLogger({
-      level: config.level,
-      silent: config.silent,
-      transports,
-      exitOnError: false,
-      handleExceptions: true,
-      handleRejections: true,
-    });
-
-    // Add custom metadata
-    this.winston.defaultMeta = {
-      service: 'api-gateway',
-      version: process.env.npm_package_version || '1.0.0',
-      environment: process.env.NODE_ENV || 'development',
-      hostname: require('os').hostname(),
-      pid: process.pid,
+  private formatEntry(level: string, message: string, meta?: Record<string, unknown>): string {
+    const entry: Record<string, unknown> = {
+      timestamp: new Date().toISOString(),
+      level: level.toUpperCase(),
+      message,
+      ...this.context,
+      ...meta,
     };
-  }
 
-  private createConsoleFormat(format: 'json' | 'pretty'): winston.Logform.Format {
-    if (format === 'json') {
-      return winston.format.combine(
-        winston.format.timestamp(),
-        winston.format.errors({ stack: true }),
-        winston.format.json(),
-        winston.format.colorize({ all: true }),
-      );
+    if (this.format === 'json') {
+      return JSON.stringify(entry);
     }
 
-    return winston.format.combine(
-      winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
-      winston.format.errors({ stack: true }),
-      winston.format.colorize({ all: true }),
-      winston.format.printf(({ timestamp, level, message, ...meta }) => {
-        const metaStr = Object.keys(meta).length > 0 ? JSON.stringify(meta, null, 2) : '';
-        return `${timestamp} [${level}]: ${message} ${metaStr}`;
-      }),
-    );
+    // Pretty format
+    const { timestamp, level: lvl, message: msg, ...rest } = entry;
+    const metaStr = Object.keys(rest).length > 0 ? ` ${JSON.stringify(rest)}` : '';
+    return `${timestamp} [${lvl}]: ${msg}${metaStr}`;
   }
 
-  private createFileFormat(type: 'combined' | 'error' | 'audit'): winston.Logform.Format {
-    const baseFormat = winston.format.combine(
-      winston.format.timestamp(),
-      winston.format.errors({ stack: true }),
-      winston.format.json(),
-    );
+  private log(level: string, message: string, meta?: Record<string, unknown>): void {
+    if (!this.shouldLog(level)) return;
+    const formatted = this.formatEntry(level, message, meta);
 
-    if (type === 'audit') {
-      return winston.format.combine(
-        baseFormat,
-        winston.format((info) => {
-          info.logType = 'audit';
-          return info;
-        })(),
-      );
+    if (level === 'error') {
+      console.error(formatted);
+    } else if (level === 'warn') {
+      console.warn(formatted);
+    } else {
+      console.log(formatted);
     }
-
-    return baseFormat;
   }
 
-  /**
-   * Set context for subsequent log entries
-   */
-  setContext(context: LogContext): void {
-    this.context = { ...this.context, ...context };
+  private getLevelName(): string {
+    return Object.keys(LOG_LEVELS).find((k) => LOG_LEVELS[k] === this.level) || 'info';
   }
 
-  /**
-   * Clear current context
-   */
-  clearContext(): void {
-    this.context = {};
-  }
-
-  /**
-   * Get current context
-   */
-  getContext(): LogContext {
-    return { ...this.context };
-  }
-
-  /**
-   * Add context to a single log entry
-   */
-  withContext(context: LogContext): Logger {
-    const logger = new Logger(this.createConfigFromCurrent());
-    logger.setContext({ ...this.context, ...context });
-    return logger;
-  }
-
-  /**
-   * Create config from current logger state
-   */
-  private createConfigFromCurrent(): LoggerConfig {
-    // This would extract config from current logger state
-    // For simplicity, return default config
+  private createChildConfig(): LoggerConfig {
     return {
-      level: 'info',
-      silent: false,
-      format: 'json',
-      enableFile: true,
+      level: this.getLevelName(),
+      silent: this.silent,
+      format: this.format,
+      enableFile: false,
       enableConsole: true,
     };
   }
 
-  /**
-   * Log debug message
-   */
+  setContext(context: LogContext): void {
+    this.context = { ...this.context, ...context };
+  }
+
+  clearContext(): void {
+    this.context = {};
+  }
+
+  getContext(): LogContext {
+    return { ...this.context };
+  }
+
+  withContext(context: LogContext): Logger {
+    const logger = new Logger(this.createChildConfig());
+    logger.setContext({ ...this.context, ...context });
+    return logger;
+  }
+
   debug(message: string, context?: LogContext): void {
-    this.winston.debug(message, { ...this.context, ...context });
+    this.log('debug', message, context);
   }
 
-  /**
-   * Log info message
-   */
   info(message: string, context?: LogContext): void {
-    this.winston.info(message, { ...this.context, ...context });
+    this.log('info', message, context);
   }
 
-  /**
-   * Log warning message
-   */
   warn(message: string, context?: LogContext): void {
-    this.winston.warn(message, { ...this.context, ...context });
+    this.log('warn', message, context);
   }
 
-  /**
-   * Log error message
-   */
   error(message: string, error?: Error, context?: LogContext): void {
-    this.winston.error(message, {
-      ...this.context,
-      ...context,
-      ...(error && {
-        error: {
-          name: error.name,
-          message: error.message,
-          stack: error.stack,
-        },
-      }),
-    });
+    const errorMeta = error
+      ? {
+          error: {
+            name: error.name,
+            message: error.message,
+            stack: error.stack,
+          },
+        }
+      : {};
+    this.log('error', message, { ...context, ...errorMeta });
   }
 
-  /**
-   * Log audit event
-   */
   audit(
     message: string,
     context: LogContext & {
@@ -248,37 +153,20 @@ class Logger {
       result?: 'success' | 'failure';
     },
   ): void {
-    this.winston.info(message, {
-      logType: 'audit',
-      timestamp: new Date().toISOString(),
-      ...this.context,
-      ...context,
-    });
+    this.log('info', `[AUDIT] ${message}`, { logType: 'audit', ...context });
   }
 
-  /**
-   * Log performance metrics
-   */
   metric(name: string, value: number, unit?: string, context?: LogContext): void {
-    this.winston.info(`Metric: ${name}`, {
+    this.log('info', `Metric: ${name}`, {
       logType: 'metric',
-      metric: {
-        name,
-        value,
-        unit: unit || 'count',
-      },
-      ...this.context,
+      metric: { name, value, unit: unit || 'count' },
       ...context,
     });
   }
 
-  /**
-   * Log HTTP request
-   */
   logRequest(req: Request, startTime: number, context?: LogContext): void {
     const duration = Date.now() - startTime;
-
-    this.winston.info('HTTP Request', {
+    this.log('info', 'HTTP Request', {
       logType: 'http',
       request: {
         method: req.method,
@@ -290,29 +178,18 @@ class Logger {
         statusCode: context?.statusCode,
         duration,
       },
-      ...this.context,
       ...context,
     });
   }
 
-  /**
-   * Log database query
-   */
   logQuery(query: string, duration: number, context?: LogContext): void {
-    this.winston.debug('Database Query', {
+    this.log('debug', 'Database Query', {
       logType: 'database',
-      query: {
-        sql: query,
-        duration,
-      },
-      ...this.context,
+      query: { sql: query, duration },
       ...context,
     });
   }
 
-  /**
-   * Log external API call
-   */
   logApiCall(
     url: string,
     method: string,
@@ -320,22 +197,13 @@ class Logger {
     duration: number,
     context?: LogContext,
   ): void {
-    this.winston.info('External API Call', {
+    this.log('info', 'External API Call', {
       logType: 'external_api',
-      api: {
-        url,
-        method,
-        statusCode,
-        duration,
-      },
-      ...this.context,
+      api: { url, method, statusCode, duration },
       ...context,
     });
   }
 
-  /**
-   * Log security event
-   */
   logSecurity(
     event: string,
     context: LogContext & {
@@ -344,67 +212,43 @@ class Logger {
       details?: any;
     },
   ): void {
-    this.winston.warn(`Security Event: ${event}`, {
+    this.log('warn', `Security Event: ${event}`, {
       logType: 'security',
       security: {
         event,
         severity: context.severity || 'medium',
         source: context.source || 'api-gateway',
       },
-      ...this.context,
       ...context,
     });
   }
 
-  /**
-   * Log business event
-   */
   logBusiness(event: string, context: LogContext): void {
-    this.winston.info(`Business Event: ${event}`, {
+    this.log('info', `Business Event: ${event}`, {
       logType: 'business',
-      business: {
-        event,
-      },
-      ...this.context,
+      business: { event },
       ...context,
     });
   }
 
-  /**
-   * Log system event
-   */
   logSystem(event: string, context: LogContext): void {
-    this.winston.info(`System Event: ${event}`, {
+    this.log('info', `System Event: ${event}`, {
       logType: 'system',
       system: {
         event,
         uptime: process.uptime(),
         memory: process.memoryUsage(),
       },
-      ...this.context,
       ...context,
     });
   }
 
-  /**
-   * Create child logger with additional default context
-   */
   child(context: LogContext): Logger {
-    const childLogger = new Logger(this.createConfigFromCurrent());
+    const childLogger = new Logger(this.createChildConfig());
     childLogger.setContext({ ...this.context, ...context });
     return childLogger;
   }
 
-  /**
-   * Get Winston logger instance for advanced usage
-   */
-  getWinstonLogger(): winston.Logger {
-    return this.winston;
-  }
-
-  /**
-   * Test log levels
-   */
   test(): void {
     this.debug('Debug message test');
     this.info('Info message test');
@@ -431,7 +275,7 @@ export function initializeLogger(config: Partial<LoggerConfig> = {}): Logger {
     level: process.env.LOG_LEVEL || 'info',
     silent: process.env.NODE_ENV === 'test',
     format: process.env.NODE_ENV === 'production' ? 'json' : 'pretty',
-    enableFile: process.env.NODE_ENV !== 'test',
+    enableFile: false,
     enableConsole: true,
     logDir: process.env.LOG_DIR || './logs',
     maxFiles: process.env.LOG_MAX_FILES || '14d',
@@ -442,7 +286,6 @@ export function initializeLogger(config: Partial<LoggerConfig> = {}): Logger {
   const finalConfig = { ...defaultConfig, ...config };
   logger = new Logger(finalConfig);
 
-  // Log initialization
   logger.info('Logger initialized', {
     config: {
       level: finalConfig.level,
@@ -457,7 +300,6 @@ export function initializeLogger(config: Partial<LoggerConfig> = {}): Logger {
 
 export function getLogger(): Logger {
   if (!logger) {
-    // Initialize with default config if not already initialized
     logger = initializeLogger();
   }
   return logger;
@@ -469,7 +311,6 @@ export function createRequestLogger() {
     const startTime = Date.now();
     const requestId = generateRequestId();
 
-    // Add request context to logger
     const requestLogger = getLogger().withContext({
       requestId,
       method: req.method,
@@ -478,13 +319,9 @@ export function createRequestLogger() {
       userAgent: req.headers['user-agent'],
     });
 
-    // Store logger on request object for use in routes
     (req as any).logger = requestLogger;
-
-    // Log request start
     requestLogger.info('Request started');
 
-    // Log request completion
     res.on('finish', () => {
       requestLogger.logRequest(req, startTime, {
         statusCode: res.statusCode,
@@ -518,4 +355,4 @@ function generateRequestId(): string {
 }
 
 // Export default logger instance
-export { logger as default };
+export { logger as default, logger };

@@ -1,6 +1,5 @@
 import { createAuthContext } from '@hyperdash/contracts';
 import type { Server as HTTPServer } from 'http';
-import jwt from 'jsonwebtoken';
 import { type Socket, Server as SocketIOServer } from 'socket.io';
 
 export interface AuthenticatedSocket extends Socket {
@@ -67,7 +66,6 @@ class WebSocketManager {
       pingTimeout: 60000,
       pingInterval: 25000,
       maxHttpBufferSize: 1e6, // 1MB
-      compression: true,
     });
 
     this.setupMiddleware();
@@ -90,6 +88,7 @@ class WebSocketManager {
           return next(new Error('Authentication required'));
         }
 
+        // Verify JWT properly
         const user = await createAuthContext(token);
         (socket as AuthenticatedSocket).userId = user.userId;
         (socket as AuthenticatedSocket).user = user;
@@ -112,8 +111,8 @@ class WebSocketManager {
   private setupEventHandlers(): void {
     if (!this.io) return;
 
-    this.io.on('connection', (socket: AuthenticatedSocket) => {
-      this.handleConnection(socket);
+    this.io.on('connection', (socket) => {
+      this.handleConnection(socket as unknown as AuthenticatedSocket);
     });
 
     console.log('✅ WebSocket event handlers configured');

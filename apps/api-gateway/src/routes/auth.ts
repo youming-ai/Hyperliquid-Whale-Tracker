@@ -1,8 +1,33 @@
-import { publicProcedure, t } from '@hyperdash/contracts';
+import { protectedProcedure, publicProcedure, t } from '@hyperdash/contracts';
 import { TRPCError } from '@trpc/server';
+import { decodeJwt } from 'jose';
 import { z } from 'zod';
 import { getAuthService } from '../services/auth';
 import { logger } from '../utils/logger';
+
+/**
+ * Find or create user by wallet address (mock implementation)
+ */
+async function findOrCreateUser(walletAddress: string) {
+  return {
+    userId: `user_${walletAddress.slice(-8)}`,
+    walletAddr: walletAddress,
+    kycLevel: 1,
+    tier: 'freemium' as const,
+    email: undefined,
+  };
+}
+
+/**
+ * Decode a JWT token without verification
+ */
+function decodeToken(token: string) {
+  try {
+    return decodeJwt(token);
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Authentication Router
@@ -11,13 +36,13 @@ import { logger } from '../utils/logger';
  */
 export const authRouter = t.router({
   // Wallet-based authentication - generate nonce
-  generateNonce: t.procedure
+  generateNonce: publicProcedure
     .input(
       z.object({
         walletAddress: z.string().regex(/^0x[a-fA-F0-9]{40}$/, 'Invalid Ethereum address'),
       }),
     )
-    .mutation(async ({ input, ctx }) => {
+    .mutation(async ({ input, ctx }: { input: { walletAddress: string }; ctx: any }) => {
       const { walletAddress } = input;
       const authService = getAuthService();
 
@@ -39,7 +64,7 @@ export const authRouter = t.router({
     }),
 
   // Authenticate with wallet signature
-  authenticateWithWallet: t.procedure
+  authenticateWithWallet: publicProcedure
     .input(
       z.object({
         walletAddress: z.string().regex(/^0x[a-fA-F0-9]{40}$/, 'Invalid Ethereum address'),
@@ -47,73 +72,83 @@ export const authRouter = t.router({
         nonce: z.string(),
       }),
     )
-    .mutation(async ({ input, ctx }) => {
-      const { walletAddress, signature, nonce } = input;
-      const authService = getAuthService();
+    .mutation(
+      async ({
+        input,
+        ctx,
+      }: {
+        input: { walletAddress: string; signature: string; nonce: string };
+        ctx: any;
+      }) => {
+        const { walletAddress, signature, nonce } = input;
+        const authService = getAuthService();
 
-      try {
-        // Verify wallet signature
-        const message = `Sign this message to authenticate with HyperDash: ${nonce}`;
-        const isValidSignature = await authService.verifyWalletSignature(
-          walletAddress,
-          message,
-          signature,
-          nonce,
-        );
+        try {
+          // Verify wallet signature
+          const message = `Sign this message to authenticate with HyperDash: ${nonce}`;
+          const isValidSignature = await authService.verifyWalletSignature(
+            walletAddress,
+            message,
+            signature,
+            nonce,
+          );
 
-        if (!isValidSignature) {
+          if (!isValidSignature) {
+            throw new TRPCError({
+              code: 'UNAUTHORIZED',
+              message: 'Invalid signature or nonce',
+            });
+          }
+
+          // Check if user exists in database (mock implementation)
+          const userPayload = await findOrCreateUser(walletAddress);
+
+          // Generate tokens
+          const tokens = await authService.generateTokens(userPayload);
+
+          logger.info(`Wallet authentication successful`, {
+            userId: userPayload.userId,
+            walletAddress,
+            ip: ctx.req?.socket?.remoteAddress,
+            userAgent: ctx.req?.headers?.['user-agent'],
+          });
+
+          return {
+            user: {
+              userId: userPayload.userId,
+              walletAddress: userPayload.walletAddr,
+              kycLevel: userPayload.kycLevel,
+              tier: userPayload.tier,
+              email: userPayload.email,
+            },
+            tokens,
+          };
+        } catch (error) {
+          logger.error(
+            `Wallet authentication failed`,
+            error instanceof Error ? error : new Error(String(error)),
+            {
+              walletAddress,
+              ip: ctx.req?.socket?.remoteAddress,
+            },
+          );
+
           throw new TRPCError({
             code: 'UNAUTHORIZED',
-            message: 'Invalid signature or nonce',
+            message: 'Authentication failed',
           });
         }
-
-        // Check if user exists in database (mock implementation)
-        // In a real implementation, query the users table
-        const userPayload = await this.findOrCreateUser(walletAddress);
-
-        // Generate tokens
-        const tokens = await authService.generateTokens(userPayload);
-
-        logger.info(`Wallet authentication successful`, {
-          userId: userPayload.userId,
-          walletAddress,
-          ip: ctx.req?.socket?.remoteAddress,
-          userAgent: ctx.req?.headers?.['user-agent'],
-        });
-
-        return {
-          user: {
-            userId: userPayload.userId,
-            walletAddress: userPayload.walletAddr,
-            kycLevel: userPayload.kycLevel,
-            tier: userPayload.tier,
-            email: userPayload.email,
-          },
-          tokens,
-        };
-      } catch (error) {
-        logger.error(`Wallet authentication failed`, {
-          walletAddress,
-          error: error.message,
-          ip: ctx.req?.socket?.remoteAddress,
-        });
-
-        throw new TRPCError({
-          code: 'UNAUTHORIZED',
-          message: 'Authentication failed',
-        });
-      }
-    }),
+      },
+    ),
 
   // Refresh access token
-  refreshToken: t.procedure
+  refreshToken: publicProcedure
     .input(
       z.object({
         refreshToken: z.string(),
       }),
     )
-    .mutation(async ({ input, ctx }) => {
+    .mutation(async ({ input, ctx }: { input: { refreshToken: string }; ctx: any }) => {
       const { refreshToken } = input;
       const authService = getAuthService();
 
@@ -128,10 +163,13 @@ export const authRouter = t.router({
           tokens: newTokens,
         };
       } catch (error) {
-        logger.error(`Token refresh failed`, {
-          error: error.message,
-          ip: ctx.req?.socket?.remoteAddress,
-        });
+        logger.error(
+          `Token refresh failed`,
+          error instanceof Error ? error : new Error(String(error)),
+          {
+            ip: ctx.req?.socket?.remoteAddress,
+          },
+        );
 
         throw new TRPCError({
           code: 'UNAUTHORIZED',
@@ -141,7 +179,7 @@ export const authRouter = t.router({
     }),
 
   // Logout (revoke refresh token)
-  logout: t.procedure
+  logout: protectedProcedure
     .input(
       z.object({
         refreshToken: z.string().optional(),
@@ -152,20 +190,16 @@ export const authRouter = t.router({
       const { refreshToken, allDevices } = input;
       const authService = getAuthService();
 
-      // In a real implementation, this would be protected by authentication middleware
-      // For now, we'll extract the user ID from the refresh token
-
       try {
         if (allDevices) {
-          // Revoke all tokens for user (would need user ID from auth context)
           logger.info(`Logged out from all devices`, {
+            userId: ctx.user.userId,
             ip: ctx.req?.socket?.remoteAddress,
           });
         } else if (refreshToken) {
-          // Revoke specific refresh token
-          const decoded = authService.decodeToken(refreshToken);
+          const decoded = decodeToken(refreshToken) as Record<string, unknown> | null;
           if (decoded?.tokenId) {
-            await authService.revokeToken(decoded.tokenId);
+            await authService.revokeToken(decoded.tokenId as string);
           }
 
           logger.info(`Logged out specific device`, {
@@ -179,12 +213,10 @@ export const authRouter = t.router({
           message: allDevices ? 'Logged out from all devices' : 'Logged out successfully',
         };
       } catch (error) {
-        logger.error(`Logout failed`, {
-          error: error.message,
+        logger.error(`Logout failed`, error instanceof Error ? error : new Error(String(error)), {
           ip: ctx.req?.socket?.remoteAddress,
         });
 
-        // Don't throw error for logout, just return success
         return {
           success: true,
           message: 'Logout completed',
@@ -193,13 +225,13 @@ export const authRouter = t.router({
     }),
 
   // Verify token validity
-  verifyToken: t.procedure
+  verifyToken: publicProcedure
     .input(
       z.object({
         token: z.string(),
       }),
     )
-    .query(async ({ input, ctx }) => {
+    .query(async ({ input, ctx }: { input: { token: string }; ctx: any }) => {
       const { token } = input;
       const authService = getAuthService();
 
@@ -219,24 +251,23 @@ export const authRouter = t.router({
       } catch (error) {
         return {
           valid: false,
-          error: error.message,
+          error: error instanceof Error ? error.message : String(error),
         };
       }
     }),
 
   // Get token information
-  tokenInfo: t.procedure
+  tokenInfo: publicProcedure
     .input(
       z.object({
         token: z.string(),
       }),
     )
-    .query(async ({ input, ctx }) => {
+    .query(async ({ input }) => {
       const { token } = input;
-      const authService = getAuthService();
 
       try {
-        const decoded = authService.decodeToken(token);
+        const decoded = decodeToken(token) as Record<string, unknown> | null;
 
         if (!decoded) {
           throw new TRPCError({
@@ -254,8 +285,8 @@ export const authRouter = t.router({
             iss: decoded.iss,
             aud: decoded.aud,
           },
-          expired: decoded.exp ? Date.now() / 1000 > decoded.exp : false,
-          validUntil: decoded.exp ? new Date(decoded.exp * 1000).toISOString() : null,
+          expired: decoded.exp ? Date.now() / 1000 > (decoded.exp as number) : false,
+          validUntil: decoded.exp ? new Date((decoded.exp as number) * 1000).toISOString() : null,
         };
       } catch (error) {
         throw new TRPCError({
@@ -266,8 +297,7 @@ export const authRouter = t.router({
     }),
 
   // Get authentication statistics (admin only)
-  authStats: t.procedure.query(async ({ ctx }) => {
-    // In a real implementation, this would be protected by admin middleware
+  authStats: protectedProcedure.query(async ({ ctx }) => {
     const authService = getAuthService();
     const stats = authService.getTokenStats();
 
@@ -284,13 +314,13 @@ export const authRouter = t.router({
   }),
 
   // Validate password strength (for users who also use password authentication)
-  validatePassword: t.procedure
+  validatePassword: publicProcedure
     .input(
       z.object({
         password: z.string(),
       }),
     )
-    .query(async ({ input, ctx }) => {
+    .query(async ({ input, ctx }: { input: { password: string }; ctx: any }) => {
       const { password } = input;
       const authService = getAuthService();
 
@@ -309,32 +339,4 @@ export const authRouter = t.router({
         },
       };
     }),
-
-  // Helper method to find or create user (mock implementation)
-  async findOrCreateUser(walletAddress: string) {
-    // In a real implementation, this would query the database
-    // For now, we'll return a mock user payload
-
-    return {
-      userId: `user_${walletAddress.slice(-8)}`, // Mock user ID
-      walletAddr: walletAddress,
-      kycLevel: 1, // Default KYC level
-      tier: 'freemium' as const,
-      email: undefined, // Users might not have email if using wallet auth only
-    };
-  },
-});
-
-// Add decodeToken method to AuthService class (for token info endpoint)
-const originalAuthService = getAuthService;
-Object.defineProperty(AuthService.prototype, 'decodeToken', {
-  value: (token: string) => {
-    try {
-      return require('jsonwebtoken').decode(token, { complete: true });
-    } catch (error) {
-      return null;
-    }
-  },
-  writable: true,
-  configurable: true,
 });
