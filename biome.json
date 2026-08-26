@@ -51,6 +51,10 @@
       "style": {
         "noNonNullAssertion": "warn"
       },
+      "complexity": {
+        "noStaticOnlyClass": "off",
+        "noBannedTypes": "off"
+      },
       "suspicious": {
         "noExplicitAny": "warn"
       }

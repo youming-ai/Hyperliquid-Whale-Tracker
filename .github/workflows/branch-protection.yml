@@ -66,6 +66,10 @@ jobs:
           COMMITS=$(git log --format='%s' origin/main..HEAD)
 
           while IFS= read -r commit; do
+            # Skip merge commits (GitHub auto-generates these)
+            if [[ "$commit" == Merge* ]]; then
+              continue
+            fi
             if [[ ! "$commit" =~ ^(feat|fix|docs|style|refactor|test|chore)([(].+[)])?:\ .+ ]]; then
               echo "❌ Invalid commit message format: $commit"
               echo "Expected format: type(scope): description"
