@@ -1,53 +1,53 @@
 @import "tailwindcss";
 
-/* CSS Variables for theming */
-:root {
-  --background: 0 0% 100%;
-  --foreground: 222.2 84% 4.9%;
-  --card: 0 0% 100%;
-  --card-foreground: 222.2 84% 4.9%;
-  --popover: 0 0% 100%;
-  --popover-foreground: 222.2 84% 4.9%;
-  --primary: 222.2 47.4% 11.2%;
-  --primary-foreground: 210 40% 98%;
-  --secondary: 210 40% 96%;
-  --secondary-foreground: 222.2 84% 4.9%;
-  --muted: 210 40% 96%;
-  --muted-foreground: 215.4 16.3% 46.9%;
-  --accent: 210 40% 96%;
-  --accent-foreground: 222.2 84% 4.9%;
-  --destructive: 0 84.2% 60.2%;
-  --destructive-foreground: 210 40% 98%;
-  --border: 214.3 31.8% 91.4%;
-  --input: 214.3 31.8% 91.4%;
-  --ring: 222.2 84% 4.9%;
-  --radius: 0.5rem;
-  --success: 142 76% 36%;
-  --warning: 38 92% 50%;
-}
+/*
+ * hyperdash.com-inspired warm-dark theme.
+ * hyperdash is dark-only; this replaces the previous light/dark split with a
+ * single warm-dark palette (gray-16 base #100e0a, orange accent, soft green/rose
+ * for up/down, elevated panels with 1px shadow borders).
+ */
 
-.dark {
-  --background: 222.2 84% 4.9%;
-  --foreground: 210 40% 98%;
-  --card: 222.2 84% 4.9%;
-  --card-foreground: 210 40% 98%;
-  --popover: 222.2 84% 4.9%;
-  --popover-foreground: 210 40% 98%;
-  --primary: 210 40% 98%;
-  --primary-foreground: 222.2 47.4% 11.2%;
-  --secondary: 217.2 32.6% 17.5%;
-  --secondary-foreground: 210 40% 98%;
-  --muted: 217.2 32.6% 17.5%;
-  --muted-foreground: 215 20.2% 65.1%;
-  --accent: 217.2 32.6% 17.5%;
-  --accent-foreground: 210 40% 98%;
-  --destructive: 0 62.8% 30.6%;
-  --destructive-foreground: 210 40% 98%;
-  --border: 217.2 32.6% 17.5%;
-  --input: 217.2 32.6% 17.5%;
-  --ring: 212.7 26.8% 83.9%;
-  --success: 142 76% 36%;
+:root {
+  /* Warm-dark base — gray-16 #100e0a (warm near-black) */
+  --background: 40 23% 5%;
+  --foreground: 0 0% 100%; /* fg-primary #fff */
+
+  /* Panel surfaces — gray-15 #141210, elevated gray-14 #191613 */
+  --card: 30 11% 7%;
+  --card-foreground: 0 0% 100%;
+  --popover: 30 14% 9%;
+  --popover-foreground: 0 0% 100%;
+
+  /* Subtle elevated border — gray-13 #262422 (barely visible on dark base) */
+  --border: 30 6% 14%;
+  --input: 30 6% 14%;
+
+  /* Orange accent — orange-9 #ed3602 (links, highlights, active tabs) */
+  --primary: 13 89% 47%;
+  --primary-foreground: 0 0% 100%;
+
+  /* Muted surfaces */
+  --secondary: 30 6% 14%; /* gray-13 */
+  --secondary-foreground: 0 0% 100%;
+  --muted: 30 14% 9%; /* gray-14 */
+  --muted-foreground: 33 9% 82%; /* gray-3 #d5d1cd (fg-secondary) */
+  --accent: 30 14% 9%;
+  --accent-foreground: 0 0% 100%;
+
+  /* Semantic up/down — soft green #5cc09b / rose #d44b62 (not pure red) */
+  --success: 155 26% 55%;
+  --success-foreground: 0 0% 100%;
+  --destructive: 349 59% 56%;
+  --destructive-foreground: 0 0% 100%;
   --warning: 38 92% 50%;
+
+  /* Tertiary text tiers — gray-7 #928d86 / gray-9 #726e68 */
+  --fg-tertiary: 35 5% 55%;
+  --fg-quaternary: 33 5% 43%;
+  --fg-accent: 13 89% 47%;
+
+  --radius: 0.5rem;
+  --ring: 13 89% 47%; /* focus ring = accent */
 }
 
 * {
@@ -57,7 +57,20 @@
 body {
   background-color: hsl(var(--background));
   color: hsl(var(--foreground));
-  font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family:
+    "Geist", "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Monospace numbers (prices, sizes, PnL) — Geist Mono with system fallback */
+.font-mono,
+.tabular-nums {
+  font-family:
+    "Geist Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco, Consolas,
+    "Liberation Mono", monospace;
+  font-variant-numeric: tabular-nums;
 }
 
 /* Utility classes */
@@ -70,9 +83,66 @@ body {
 .text-destructive {
   color: hsl(var(--destructive));
 }
+.text-fg-tertiary {
+  color: hsl(var(--fg-tertiary));
+}
+.text-fg-quaternary {
+  color: hsl(var(--fg-quaternary));
+}
+.text-fg-accent {
+  color: hsl(var(--fg-accent));
+}
 .bg-card {
   background-color: hsl(var(--card));
 }
 .border-border {
   border-color: hsl(var(--border));
+}
+
+/*
+ * Elevated panel — hyperdash uses a 1px shadow border (not a solid border)
+ * for a subtle floating effect on the dark base.
+ */
+.panel {
+  background-color: hsl(var(--card));
+  border-radius: var(--radius);
+  box-shadow: 0 0 0 1px hsl(var(--border));
+}
+
+.panel-header {
+  border-bottom: 1px solid hsl(var(--border));
+  background-color: hsl(var(--muted) / 0.3);
+}
+
+/* Dock-style horizontal scroll with faded edges (hyperdash tab strips) */
+.dock-scroll {
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent,
+    #000 20px,
+    #000 calc(100% - 20px),
+    transparent
+  );
+  mask-image: linear-gradient(
+    to right,
+    transparent,
+    #000 20px,
+    #000 calc(100% - 20px),
+    transparent
+  );
+}
+
+/* Animated fade-in for panels/data appearing */
+@keyframes hd-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animate-fade-in {
+  animation: hd-fade-in 0.3s ease-out;
 }

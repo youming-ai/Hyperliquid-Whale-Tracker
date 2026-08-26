@@ -72,11 +72,11 @@ export function WhalePositions({ symbol }: WhalePositionsProps) {
               <span className="opacity-80 max-w-[110px] truncate" title={row.traderAddress}>
                 {shortenAddress(row.traderAddress)}
               </span>
-              <span className={long ? 'text-green-500' : 'text-red-500'}>
+              <span className={long ? 'text-success' : 'text-destructive'}>
                 {long ? 'LONG' : 'SHORT'} {formatNumber(parseFloat(row.quantity))}
               </span>
               <span className="opacity-70">{formatUsd(value)}</span>
-              <span className={pnl >= 0 ? 'text-green-500' : 'text-red-500'}>
+              <span className={pnl >= 0 ? 'text-success' : 'text-destructive'}>
                 {pnl >= 0 ? '+' : ''}
                 {formatUsd(pnl)}
               </span>

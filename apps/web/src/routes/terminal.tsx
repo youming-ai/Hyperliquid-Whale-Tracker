@@ -116,7 +116,9 @@ function TerminalPage() {
         <div className="flex items-center gap-3 text-xs">
           <span
             className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full ${
-              feed.connected ? 'bg-green-500/15 text-green-500' : 'bg-amber-500/15 text-amber-500'
+              feed.connected
+                ? 'bg-green-500/15 text-success'
+                : 'bg-[hsl(var(--warning))]/15 text-warning'
             }`}
           >
             <Radio className="w-3.5 h-3.5" />
@@ -141,7 +143,7 @@ function TerminalPage() {
             className={`px-3 py-1.5 rounded-lg text-sm font-mono whitespace-nowrap transition-colors ${
               c.symbol === coin
                 ? 'bg-[hsl(var(--primary))] text-primary-foreground'
-                : 'bg-muted/40 hover:bg-muted'
+                : 'bg-[hsl(var(--muted))]/40 hover:bg-[hsl(var(--muted))]'
             }`}
           >
             {c.symbol}
@@ -215,15 +217,15 @@ function Stat({
   bare?: boolean;
 }) {
   return (
-    <div className="rounded-xl border border-border bg-card p-3">
+    <div className="panel p-3">
       <div className="text-xs opacity-60 mb-0.5">{label}</div>
       <div
         className={`text-lg font-mono font-semibold ${
           bare !== true
             ? accent === true
-              ? 'text-green-500'
+              ? 'text-success'
               : accent === false
-                ? 'text-red-500'
+                ? 'text-destructive'
                 : ''
             : ''
         }`}
@@ -245,8 +247,8 @@ function Panel({
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-xl border border-border bg-card overflow-hidden">
-      <div className="flex items-center gap-1.5 px-3 py-2 border-b border-border bg-muted/30 text-xs uppercase tracking-wide opacity-70">
+    <div className="panel overflow-hidden">
+      <div className="flex items-center gap-1.5 px-3 py-2 panel-header text-xs uppercase tracking-wide opacity-70">
         {badge}
         {title}
       </div>

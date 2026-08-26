@@ -51,7 +51,7 @@ function AnalyticsPage() {
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm whitespace-nowrap transition-colors ${
               tab === t.id
                 ? 'bg-[hsl(var(--primary))] text-primary-foreground'
-                : 'bg-muted/40 hover:bg-muted'
+                : 'bg-[hsl(var(--muted))]/40 hover:bg-[hsl(var(--muted))]'
             }`}
           >
             {t.icon}
@@ -116,8 +116,8 @@ function OiPanel() {
   }
 
   return (
-    <div className="rounded-xl border border-border bg-card overflow-hidden">
-      <div className="px-4 py-2.5 border-b border-border bg-muted/30 text-xs uppercase tracking-wide opacity-70">
+    <div className="panel overflow-hidden">
+      <div className="px-4 py-2.5 panel-header text-xs uppercase tracking-wide opacity-70">
         Top {rows.length} markets by open interest
       </div>
       <div className="overflow-x-auto">
@@ -134,14 +134,15 @@ function OiPanel() {
           </thead>
           <tbody>
             {rows.slice(0, 60).map((m) => (
-              <tr key={m.symbol} className="border-b border-border/40 hover:bg-muted/20">
+              <tr
+                key={m.symbol}
+                className="border-b border-[hsl(var(--border))]/40 hover:bg-[hsl(var(--muted))]/20"
+              >
                 <td className="px-4 py-1.5">{m.symbol}</td>
-                <td className="px-4 py-1.5 text-right text-green-500">
-                  {formatNumber(m.markPrice)}
-                </td>
+                <td className="px-4 py-1.5 text-right text-success">{formatNumber(m.markPrice)}</td>
                 <td
                   className={`px-4 py-1.5 text-right ${
-                    m.fundingRate > 0 ? 'text-green-500' : 'text-red-500'
+                    m.fundingRate > 0 ? 'text-success' : 'text-destructive'
                   }`}
                 >
                   {(m.fundingRate * 100).toFixed(4)}%
@@ -152,8 +153,8 @@ function OiPanel() {
                     m.oiChangePct === null
                       ? 'opacity-40'
                       : m.oiChangePct >= 0
-                        ? 'text-green-500'
-                        : 'text-red-500'
+                        ? 'text-success'
+                        : 'text-destructive'
                   }`}
                 >
                   {m.oiChangePct === null
@@ -206,8 +207,8 @@ function HeatmapGrid({
     );
   }
   return (
-    <div className="rounded-xl border border-border bg-card overflow-hidden">
-      <div className="px-4 py-2.5 border-b border-border bg-muted/30 text-xs uppercase tracking-wide opacity-70">
+    <div className="panel overflow-hidden">
+      <div className="px-4 py-2.5 panel-header text-xs uppercase tracking-wide opacity-70">
         {title} {columns ? `· ${columns.length} buckets` : ''}
       </div>
       <div className="p-3 overflow-x-auto">
@@ -246,9 +247,9 @@ function diverging(maxMag: number) {
   return (value: number) => {
     const t = Math.max(-1, Math.min(1, value / maxMag));
     if (t < 0) {
-      return `rgba(239,68,68,${(Math.abs(t) * 0.85).toFixed(2)})`;
+      return `hsl(var(--destructive) / ${(Math.abs(t) * 0.85).toFixed(2)})`;
     }
-    return `rgba(34,197,94,${(t * 0.85).toFixed(2)})`;
+    return `hsl(var(--success) / ${(t * 0.85).toFixed(2)})`;
   };
 }
 
@@ -436,7 +437,7 @@ function StressHeatmap() {
       title="Stress Heatmap (liquidation-like events, approximate)"
       describe="Per-minute volatility/volume spikes over the last 30 minutes. Hyperliquid exposes no public liquidation feed, so this approximates liquidation cascades via abnormal volume + price-jump bursts."
       series={model.series}
-      color={(value) => `rgba(239,68,68,${Math.min(0.95, 0.25 + value / 10).toFixed(2)})`}
+      color={(value) => `hsl(var(--destructive) / ${Math.min(0.95, 0.25 + value / 10).toFixed(2)})`}
       emptyLabel="No stress events recorded yet — watch a volatile market or wait for the recorder."
       legendNote="Approximation: score reflects volume vs 5-min baseline and max per-minute price move. Not an official liquidation feed."
     />
@@ -493,8 +494,8 @@ function WhaleFlows() {
   const maxAbs = Math.max(10_000, ...rows.map((r) => Math.abs(r.net)));
 
   return (
-    <div className="rounded-xl border border-border bg-card overflow-hidden">
-      <div className="px-4 py-2.5 border-b border-border bg-muted/30 text-xs uppercase tracking-wide opacity-70">
+    <div className="panel overflow-hidden">
+      <div className="px-4 py-2.5 panel-header text-xs uppercase tracking-wide opacity-70">
         Tracked-whale taker flow · last 60 min
       </div>
       <div className="p-4">
@@ -513,7 +514,7 @@ function WhaleFlows() {
             {rows.map((r) => (
               <div key={r.coin} className="flex items-center gap-3 text-sm">
                 <span className="w-12 font-mono text-xs">{r.coin}</span>
-                <div className="flex-1 h-5 relative bg-muted/40 rounded overflow-hidden">
+                <div className="flex-1 h-5 relative bg-[hsl(var(--muted))]/40 rounded overflow-hidden">
                   {r.net >= 0 ? (
                     <div
                       className="absolute inset-y-0 left-1/2 bg-green-500/70"
@@ -527,7 +528,7 @@ function WhaleFlows() {
                   )}
                 </div>
                 <span
-                  className={`w-32 text-right font-mono text-xs ${r.net >= 0 ? 'text-green-500' : 'text-red-500'}`}
+                  className={`w-32 text-right font-mono text-xs ${r.net >= 0 ? 'text-success' : 'text-destructive'}`}
                 >
                   {r.net >= 0 ? '+' : ''}
                   {formatUsd(r.net)}

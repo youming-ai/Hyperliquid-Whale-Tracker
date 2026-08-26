@@ -53,10 +53,11 @@ export function OrderBook({ book, rows = 12 }: OrderBookProps) {
         className="absolute inset-y-0 right-0 rounded-sm"
         style={{
           width: `${(row.cumulative / model.maxDepth) * 100}%`,
-          background: row.side === 'bid' ? 'rgba(34,197,94,0.14)' : 'rgba(239,68,68,0.14)',
+          background:
+            row.side === 'bid' ? 'hsl(var(--success) / 0.14)' : 'hsl(var(--destructive) / 0.14)',
         }}
       />
-      <span className={row.side === 'bid' ? 'text-green-500' : 'text-red-500'}>
+      <span className={row.side === 'bid' ? 'text-success' : 'text-destructive'}>
         {formatNumber(parseFloat(row.px))}
       </span>
       <span className="opacity-80">{row.sz}</span>
@@ -73,7 +74,7 @@ export function OrderBook({ book, rows = 12 }: OrderBookProps) {
       </div>
       <div className="space-y-px">
         {[...model.asks].reverse().map(renderRow)}
-        <div className="flex items-center justify-between px-3 py-1 text-xs border-y border-border bg-muted/40">
+        <div className="flex items-center justify-between px-3 py-1 text-xs border-y border-[hsl(var(--border))] bg-[hsl(var(--muted))]/40">
           <span className="opacity-70">Spread</span>
           <span className="font-mono">{model.mid > 0 ? formatNumber(model.mid) : '-'}</span>
         </div>

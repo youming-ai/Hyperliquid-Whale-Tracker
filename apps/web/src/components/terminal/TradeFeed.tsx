@@ -35,7 +35,7 @@ export function TradeFeed({ trades, limit = 50, compact = false }: TradeFeedProp
               key={`${trade.tid ?? 'x'}-${trade.time}`}
               className="flex items-center justify-between px-3 py-[3px] font-mono"
             >
-              <span className={`w-20 tabular-nums ${buy ? 'text-green-500' : 'text-red-500'}`}>
+              <span className={`w-20 tabular-nums ${buy ? 'text-success' : 'text-destructive'}`}>
                 {formatNumber(price)}
               </span>
               <span className="opacity-80 tabular-nums">{formatNumber(size)}</span>

@@ -7,9 +7,9 @@ interface CandlestickChartProps {
   showVolume?: boolean;
 }
 
-const UP_COLOR = '#22c55e';
-const DOWN_COLOR = '#ef4444';
-const GRID_COLOR = 'rgba(148, 163, 184, 0.12)';
+const UP_COLOR = '#5cc09b';
+const DOWN_COLOR = '#d44b62';
+const GRID_COLOR = 'rgba(255, 255, 255, 0.06)';
 
 /**
  * Lightweight SVG candlestick chart. No charting dependency — candlesticks,
