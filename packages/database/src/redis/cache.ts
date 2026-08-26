@@ -259,7 +259,9 @@ export class CacheFactory {
       CacheFactory.instances.set(key, new CacheManager(ttl));
     }
 
-    return CacheFactory.instances.get(key)!;
+    const instance = CacheFactory.instances.get(key);
+    if (!instance) throw new Error(`Cache instance not found: ${key}`);
+    return instance;
   }
 
   static getShortLivedCache(): CacheManager {

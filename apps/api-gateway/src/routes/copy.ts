@@ -271,7 +271,8 @@ export const copyRouter = t.router({
               tradeCount: 0,
             });
           }
-          const entry = timeseriesByDay.get(dateKey)!;
+          const entry = timeseriesByDay.get(dateKey);
+          if (!entry) continue;
           entry.tradeCount++;
           if (order.pnl) {
             entry.dailyPnl += Number(order.pnl);
