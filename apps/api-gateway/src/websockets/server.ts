@@ -1,5 +1,5 @@
+import type { Server as HTTPServer } from 'node:http';
 import { createAuthContext } from '@hyperdash/contracts';
-import type { Server as HTTPServer } from 'http';
 import { type Socket, Server as SocketIOServer } from 'socket.io';
 
 export interface AuthenticatedSocket extends Socket {
@@ -102,7 +102,7 @@ class WebSocketManager {
 
     // Rate limiting middleware
     this.io.use((socket: any, next) => {
-      const ip = socket.handshake.address;
+      const _ip = socket.handshake.address;
       // Add rate limiting logic here if needed
       next();
     });
@@ -119,7 +119,7 @@ class WebSocketManager {
   }
 
   private handleConnection(socket: AuthenticatedSocket): void {
-    const { userId, user } = socket;
+    const { userId } = socket;
 
     console.log(`🔌 WebSocket client connected: ${socket.id} (user: ${userId})`);
 
@@ -391,12 +391,12 @@ class WebSocketManager {
     if (!this.roomSubscriptions.has(room)) {
       this.roomSubscriptions.set(room, new Set());
     }
-    this.roomSubscriptions.get(room)!.add(socketId);
+    this.roomSubscriptions.get(room)?.add(socketId);
 
     if (!this.socketRooms.has(socketId)) {
       this.socketRooms.set(socketId, new Set());
     }
-    this.socketRooms.get(socketId)!.add(room);
+    this.socketRooms.get(socketId)?.add(room);
   }
 
   private removeFromRoom(room: string, socketId: string): void {
@@ -418,7 +418,7 @@ class WebSocketManager {
   private emitToService(
     service: string,
     message: WebSocketMessage,
-    senderSocket?: AuthenticatedSocket,
+    _senderSocket?: AuthenticatedSocket,
   ): void {
     // This would emit to internal service handlers
     // In a real implementation, this would use event emitters or message queues

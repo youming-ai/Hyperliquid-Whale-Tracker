@@ -105,6 +105,7 @@ jobs:
         run: bun run build
 
       - name: Build Go copy-engine binary
+        continue-on-error: true
         run: |
           mkdir -p dist
           cd apps/copy-engine

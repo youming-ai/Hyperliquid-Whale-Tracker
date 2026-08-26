@@ -9,7 +9,7 @@ async function runMigrations() {
   console.log('Starting PostgreSQL migrations...');
 
   const client = postgres(connectionString, { max: 1 });
-  const db = drizzle(client, { schema });
+  const _db = drizzle(client, { schema });
 
   try {
     // Create all tables using Drizzle
