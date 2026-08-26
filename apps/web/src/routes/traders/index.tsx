@@ -303,7 +303,6 @@ function LiveMarketTape() {
       off();
       client.unsubscribe(channels);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   if (trades.length === 0) return null;
@@ -312,7 +311,7 @@ function LiveMarketTape() {
     <div className="mt-8 rounded-xl border border-border bg-card overflow-hidden">
       <div className="flex items-center justify-between px-3 py-2 bg-muted/30 text-xs uppercase tracking-wide opacity-70">
         <span>Live market tape</span>
-        <span className={connected ? 'text-green-500' : 'text-amber-500'}>
+        <span className={connected ? 'text-success' : 'text-warning'}>
           {connected ? '● feed live' : '○ reconnecting'}
         </span>
       </div>
@@ -323,7 +322,7 @@ function LiveMarketTape() {
             className="flex items-center gap-2 text-xs font-mono whitespace-nowrap"
           >
             <span className="font-semibold opacity-80">{t.coin}</span>
-            <span className={t.side === 'A' ? 'text-green-500' : 'text-red-500'}>
+            <span className={t.side === 'A' ? 'text-success' : 'text-destructive'}>
               {formatNumber(parseFloat(t.px))}
             </span>
             <span className="opacity-60">{formatNumber(parseFloat(t.sz))}</span>

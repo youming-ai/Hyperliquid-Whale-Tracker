@@ -41,6 +41,11 @@ interface MinuteBucket {
   whaleBuy: number;
   whaleSell: number;
   whaleTrades: number;
+  lastFlushedNotional: number;
+  lastFlushedBuy: number;
+  lastFlushedWhaleNet: number;
+  lastFlushedWhaleBuy: number;
+  lastFlushedWhaleSell: number;
 }
 
 export class FeedRecorder {
@@ -48,9 +53,10 @@ export class FeedRecorder {
   private readonly store: RedisClient | null;
   private readonly whales: Set<string>;
   private buckets = new Map<string, MinuteBucket>();
-  private lastHourTs = -1;
+  private lastHourByCoin = new Map<string, number>();
   private flushTimer: ReturnType<typeof setInterval> | null = null;
   private logRedisFailureOnce = false;
+  private minuteHistory = new Map<string, number[]>();
 
   constructor(feed: HyperliquidFeed, store: RedisClient | null) {
     this.feed = feed;
@@ -69,12 +75,6 @@ export class FeedRecorder {
   start(): void {
     this.feed.on('ctx', (ctx) => this.onCtx(ctx));
     this.feed.on('trades', (trades) => this.onTrades(trades));
-    this.feed.on('book', () => {
-      /* books are ephemeral; not recorded */
-    });
-    this.feed.on('candle', () => {
-      /* candles come from the WS client snapshot; not recorded */
-    });
     this.flushTimer = setInterval(() => {
       void this.flushBuckets();
     }, 1000);
@@ -104,21 +104,19 @@ export class FeedRecorder {
     const snapshot = JSON.stringify({ coin: ctx.coin, ts, markPx, funding, oi });
     const pipe = this.store.createPipeline();
     pipe.hset('feed:ctx', ctx.coin, snapshot);
-    if (hourTs !== this.lastHourTs) {
-      pipe.zadd(
-        'feed:funding:hist',
-        hourTs * 3_600_000,
-        JSON.stringify({ coin: ctx.coin, ts, funding }),
-      );
-      pipe.zadd('feed:px:hist', hourTs * 3_600_000, JSON.stringify({ coin: ctx.coin, ts, markPx }));
-      pipe.zadd(
-        'feed:oi:hist',
-        hourTs * 3_600_000,
-        JSON.stringify({ coin: ctx.coin, ts, openInterest: oi }),
-      );
+    if (this.lastHourByCoin.get(ctx.coin) !== hourTs) {
+      const score = hourTs * 3_600_000;
+      pipe.zadd('feed:funding:hist', score, JSON.stringify({ coin: ctx.coin, ts, funding }));
+      pipe.zadd('feed:px:hist', score, JSON.stringify({ coin: ctx.coin, ts, markPx }));
+      pipe.zadd('feed:oi:hist', score, JSON.stringify({ coin: ctx.coin, ts, openInterest: oi }));
+      // Trim history beyond 7 days to bound Redis memory.
+      const cutoff = score - 168 * 3_600_000;
+      pipe.zremrangebyscore('feed:funding:hist', 0, cutoff);
+      pipe.zremrangebyscore('feed:px:hist', 0, cutoff);
+      pipe.zremrangebyscore('feed:oi:hist', 0, cutoff);
     }
     pipe.exec().catch(() => this.logRedisFailure());
-    this.lastHourTs = hourTs;
+    this.lastHourByCoin.set(ctx.coin, hourTs);
   }
 
   private onTrades(trades: FeedTrade[]): void {
@@ -172,6 +170,11 @@ export class FeedRecorder {
         whaleBuy: 0,
         whaleSell: 0,
         whaleTrades: 0,
+        lastFlushedNotional: 0,
+        lastFlushedBuy: 0,
+        lastFlushedWhaleNet: 0,
+        lastFlushedWhaleBuy: 0,
+        lastFlushedWhaleSell: 0,
       };
       this.buckets.set(key, bucket);
       // Drop anything older than 6 minutes to bound memory.
@@ -195,16 +198,32 @@ export class FeedRecorder {
       const minuteTs = Number(key.split(':').at(-1));
       const coin = key.slice(0, key.lastIndexOf(':'));
       const member = `${coin}|${minuteTs}`;
-      pipe.zincrby('feed:vol:min', bucket.notionalUsd, member);
-      pipe.zincrby('feed:vol:buy:min', bucket.buyNotionalUsd, member);
+      // C3 fix: only flush the delta since last flush (bucket is retained for
+      // the current minute and re-flushed each second).
+      const dNotional = bucket.notionalUsd - bucket.lastFlushedNotional;
+      const dBuy = bucket.buyNotionalUsd - bucket.lastFlushedBuy;
+      if (dNotional !== 0) pipe.zincrby('feed:vol:min', dNotional, member);
+      if (dBuy !== 0) pipe.zincrby('feed:vol:buy:min', dBuy, member);
       if (bucket.whaleTrades > 0) {
-        pipe.zincrby('feed:whaleflow:min', bucket.whaleNet, member);
-        pipe.zincrby('feed:whaleflow:buy:min', bucket.whaleBuy, member);
-        pipe.zincrby('feed:whaleflow:sell:min', bucket.whaleSell, member);
+        const dNet = bucket.whaleNet - bucket.lastFlushedWhaleNet;
+        const dWhaleBuy = bucket.whaleBuy - bucket.lastFlushedWhaleBuy;
+        const dWhaleSell = bucket.whaleSell - bucket.lastFlushedWhaleSell;
+        if (dNet !== 0) pipe.zincrby('feed:whaleflow:min', dNet, member);
+        if (dWhaleBuy !== 0) pipe.zincrby('feed:whaleflow:buy:min', dWhaleBuy, member);
+        if (dWhaleSell !== 0) pipe.zincrby('feed:whaleflow:sell:min', dWhaleSell, member);
       }
+      bucket.lastFlushedNotional = bucket.notionalUsd;
+      bucket.lastFlushedBuy = bucket.buyNotionalUsd;
+      bucket.lastFlushedWhaleNet = bucket.whaleNet;
+      bucket.lastFlushedWhaleBuy = bucket.whaleBuy;
+      bucket.lastFlushedWhaleSell = bucket.whaleSell;
       // Keep the current minute's bucket in memory for stress detection at close.
-      if (minuteTs === nowMinuteTs) lastMinute.set(coin, bucket);
-      else this.detectStress(pipe, coin, bucket);
+      if (minuteTs === nowMinuteTs) {
+        lastMinute.set(key, bucket);
+      } else {
+        this.recordClosedMinute(coin, bucket.notionalUsd);
+        this.detectStress(pipe, coin, bucket);
+      }
     }
 
     this.buckets = lastMinute; // non-current buckets are persisted or dropped
@@ -242,22 +261,23 @@ export class FeedRecorder {
     pipe.zremrangebyrank('feed:stress:min', 0, -(STRESS_MIN_MAX_JOBS + 1));
   }
 
-  /** Rolling 5-minute average notional per coin (from live buckets only). */
+  /** Rolling 5-minute average notional per coin (from finalized minutes). */
   private volRatio(coin: string, bucket: MinuteBucket): number {
-    let baseline = 0;
-    let n = 0;
-    const bucketMinute = Math.floor(bucket.ts / 60_000);
-    for (const [key, b] of this.buckets) {
-      if (key.startsWith(`${coin}:`)) {
-        const minuteTs = Number(key.split(':').at(-1));
-        if (minuteTs >= bucketMinute - 5 && minuteTs < bucketMinute) {
-          baseline += b.notionalUsd;
-          n += 1;
-        }
-      }
-    }
-    const avg = n > 0 ? baseline / n : 0;
+    const history = this.minuteHistory.get(coin) ?? [];
+    if (history.length === 0) return 0;
+    const avg = history.reduce((a, b) => a + b, 0) / history.length;
     return avg > 0 ? bucket.notionalUsd / avg : 0;
+  }
+
+  /** Record a finalized minute's total for the volRatio baseline. */
+  private recordClosedMinute(coin: string, notional: number): void {
+    let history = this.minuteHistory.get(coin);
+    if (!history) {
+      history = [];
+      this.minuteHistory.set(coin, history);
+    }
+    history.push(notional);
+    if (history.length > 5) history.shift();
   }
 
   private logRedisFailure(): void {
@@ -307,7 +327,13 @@ export class FeedRecorder {
       for (let i = 0; i + 1 < raw.length; i += 2) {
         const member = raw[i] ?? '';
         const score = Number(raw[i + 1] ?? 0);
-        if (minTs !== undefined && score < minTs) continue;
+        // The member format is `${coin}|${minuteTs}` — filter on the embedded
+        // timestamp, NOT the score (which is notional USD for vol/whale-flow).
+        if (minTs !== undefined) {
+          const sep = member.lastIndexOf('|');
+          const memberTs = sep >= 0 ? Number(member.slice(sep + 1)) * 60_000 : 0;
+          if (memberTs < minTs) continue;
+        }
         rows.push({ member, score });
       }
       return rows;

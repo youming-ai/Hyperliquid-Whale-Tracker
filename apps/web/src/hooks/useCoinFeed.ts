@@ -42,6 +42,11 @@ export function useCoinFeed(coin: string | undefined): CoinFeed {
       return;
     }
 
+    // Reset all state for the new coin (prevents cross-coin contamination).
+    setFeed({ ...EMPTY });
+    setTrades([]);
+    setCandles([]);
+
     const client = getFeedClient();
     const channels = [`trades:${coin}`, `book:${coin}`, `candle:${coin}`, `ctx:${coin}`];
     client.subscribe(channels);
@@ -133,8 +138,12 @@ export function useCoinFeed(coin: string | undefined): CoinFeed {
 
 function mergeTrades(prev: FeedTrade[], next: FeedTrade[]): FeedTrade[] {
   if (next.length === 0) return prev;
-  const seen = new Set(prev.map((t) => t.tid));
-  const fresh = next.filter((t) => !seen.has(t.tid));
+  const seen = new Set(
+    prev.map((t) => (t.tid !== undefined ? String(t.tid) : `${t.time}-${t.px}-${t.sz}`)),
+  );
+  const fresh = next.filter(
+    (t) => !seen.has(t.tid !== undefined ? String(t.tid) : `${t.time}-${t.px}-${t.sz}`),
+  );
   return [...prev, ...fresh].slice(-400);
 }
 

@@ -93,7 +93,7 @@ export function CandlestickChart({
       <div className="flex items-center justify-between px-3 py-1.5 text-xs">
         <span className="opacity-70">1m candles · last {model.bars.length}</span>
         <span
-          className={`font-mono font-semibold ${model.lastChangePct >= 0 ? 'text-green-500' : 'text-red-500'}`}
+          className={`font-mono font-semibold ${model.lastChangePct >= 0 ? 'text-success' : 'text-destructive'}`}
         >
           {model.lastClose} ({model.lastChangePct >= 0 ? '+' : ''}
           {model.lastChangePct.toFixed(2)}%)

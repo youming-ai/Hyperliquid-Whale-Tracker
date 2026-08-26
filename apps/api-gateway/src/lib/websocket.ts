@@ -15,6 +15,8 @@ interface ClientState {
   channels: Set<string>;
 }
 
+const MAX_DEMAND_PER_CLIENT = 4; // max book: + candle: channels per client
+
 const CHANNEL_PATTERN = /^(mids|ctx(:\w+)?|trades:\w+|book:\w+|candle:\w+|state)$/;
 
 export class FeedWebSocketManager {
@@ -31,7 +33,16 @@ export class FeedWebSocketManager {
       maxPayload: 1024 * 1024,
     });
 
-    this.wss.on('connection', (ws: WebSocket) => {
+    this.wss.on('connection', (ws: WebSocket, req) => {
+      // Origin check — reject cross-site WebSocket hijacking.
+      const origin = req.headers.origin;
+      const allowed = (process.env.CORS_ORIGIN ?? 'http://localhost:5173,http://localhost:3000')
+        .split(',')
+        .map((o) => o.trim());
+      if (origin && !allowed.includes(origin)) {
+        ws.close(1008, 'origin not allowed');
+        return;
+      }
       const state: ClientState = {
         id: Math.random().toString(36).substring(2, 15),
         ws,
@@ -120,6 +131,19 @@ export class FeedWebSocketManager {
       if (state.channels.has(normalized)) continue;
       state.channels.add(normalized);
       added.push(normalized);
+      if (normalized.startsWith('book:') || normalized.startsWith('candle:')) {
+        const demandCount = [...state.channels].filter(
+          (ch) => ch.startsWith('book:') || ch.startsWith('candle:'),
+        ).length;
+        if (demandCount >= MAX_DEMAND_PER_CLIENT) {
+          this.send(state, {
+            type: 'error',
+            error: `demand subscription limit reached (${MAX_DEMAND_PER_CLIENT})`,
+          });
+          state.channels.delete(normalized); // undo the add
+          continue;
+        }
+      }
       if (normalized.startsWith('book:')) {
         this.feed.subscribeBook(normalized.slice(5));
       }

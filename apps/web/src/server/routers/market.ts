@@ -168,7 +168,7 @@ export const marketRouter = new Hono<AppEnv>()
         markPrice: ctx ? parseFloat(ctx.markPx) : 0,
         indexPrice: ctx ? parseFloat(ctx.oraclePx) : 0,
         fundingRate: ctx ? parseFloat(ctx.funding) : 0,
-        nextFundingTime: new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString(),
+        nextFundingTime: new Date(Math.ceil(Date.now() / 3_600_000) * 3_600_000).toISOString(),
         openInterest: ctx ? parseFloat(ctx.openInterest) : 0,
         volume24h: ctx ? parseFloat(ctx.dayNtlVlm) : 0,
         longShortRatio: 0,

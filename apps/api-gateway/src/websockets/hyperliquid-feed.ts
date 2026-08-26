@@ -314,31 +314,17 @@ export class HyperliquidFeed extends EventEmitter {
   private buildShards(): void {
     const coins = this.coins;
 
-    // Two static connections, each ≤ shardSubsLimit subscriptions (a 3rd
-    // connection is consistently reaped on shared IPs by Hyperliquid's
-    // per-IP throttling):
-    //   feed-1: allMids + activeAssetCtx for the first (limit-1) coins
-    //   feed-2: activeAssetCtx for the remaining coins + trades for all coins
+    // Two static connections (a 3rd is consistently reaped on shared IPs):
+    //   feed-1: allMids + activeAssetCtx for all coins  (1 + N ≤ ~13)
+    //   feed-2: trades for all coins                    (N ≤ 12)
     const shard1: ShardSub[] = [{ request: { type: 'allMids' }, key: 'allMids' }];
-    const shard2: ShardSub[] = [];
     for (const coin of coins) {
-      shard2.push({ request: { type: 'trades', coin }, key: `trades:${coin}` });
+      shard1.push({ request: { type: 'activeAssetCtx', coin }, key: `ctx:${coin}` });
     }
-    const ctxOnShard1 = this.shardSubsLimit - 1;
-    const coinsWithCtxOnShard1 = coins.slice(0, ctxOnShard1);
-    const coinsWithCtxOnShard2 = coins.slice(ctxOnShard1);
-    shard1.push(
-      ...coinsWithCtxOnShard1.map((coin) => ({
-        request: { type: 'activeAssetCtx', coin },
-        key: `ctx:${coin}`,
-      })),
-    );
-    shard2.push(
-      ...coinsWithCtxOnShard2.map((coin) => ({
-        request: { type: 'activeAssetCtx', coin },
-        key: `ctx:${coin}`,
-      })),
-    );
+    const shard2: ShardSub[] = coins.map((coin) => ({
+      request: { type: 'trades', coin },
+      key: `trades:${coin}`,
+    }));
     this.shards.push(this.createShard('feed-1', shard1));
     this.shards.push(this.createShard('feed-2', shard2));
   }
@@ -445,7 +431,7 @@ export class HyperliquidFeed extends EventEmitter {
       case 'activeAssetCtx': {
         const coin = data.coin as string | undefined;
         const ctx = data.ctx as Omit<FeedCtx, 'coin'> | undefined;
-        if (!coin || ctx === undefined) break;
+        if (!coin || !ctx) break;
         const full: FeedCtx = { ...(ctx as FeedCtx), coin };
         this.ctxs.set(coin, full);
         this.emit('ctx', full);

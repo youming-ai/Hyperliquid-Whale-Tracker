@@ -99,7 +99,7 @@ function TerminalPage() {
   const mark = ctx ? parseFloat(ctx.midPx ?? ctx.markPx) : 0;
   const changePct = prevDay > 0 && mark > 0 ? ((mark - prevDay) / prevDay) * 100 : 0;
   // funding is hourly; annualize: (1+r)^(24*365) - 1
-  const fundingApy = funding !== 0 ? (1 + funding) ** (24 * 365) - 1 : 0;
+  const fundingApy = funding !== 0 ? Math.min((1 + funding) ** (24 * 365) - 1, 999) : 0;
 
   return (
     <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-6">
@@ -117,7 +117,7 @@ function TerminalPage() {
           <span
             className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full ${
               feed.connected
-                ? 'bg-green-500/15 text-success'
+                ? 'bg-[hsl(var(--success))]/15 text-success'
                 : 'bg-[hsl(var(--warning))]/15 text-warning'
             }`}
           >

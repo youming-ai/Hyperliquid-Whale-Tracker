@@ -86,6 +86,16 @@ const wsManager = new FeedWebSocketManager(server, feed);
 
 // --- Feed REST endpoints (used by the analytics/heatmap panels) ---
 
+function safeAsync(handler: (req: express.Request, res: express.Response) => Promise<void>) {
+  return async (req: express.Request, res: express.Response) => {
+    try {
+      await handler(req, res);
+    } catch (error) {
+      res.status(500).json({ error: error instanceof Error ? error.message : 'internal error' });
+    }
+  };
+}
+
 app.get('/feed/state', (_req, res) => {
   res.json(feed.buildState());
 });
@@ -106,35 +116,53 @@ function minutesParam(value: unknown, fallback: number, max: number): number {
   return Math.min(parsed, max);
 }
 
-app.get('/feed/history/funding', async (req, res) => {
-  const hours = hoursParam(req.query.hours, 24, 168);
-  res.json(await recorder.fundingHistory(hours));
-});
+app.get(
+  '/feed/history/funding',
+  safeAsync(async (req, res) => {
+    const hours = hoursParam(req.query.hours, 24, 168);
+    res.json(await recorder.fundingHistory(hours));
+  }),
+);
 
-app.get('/feed/history/price', async (req, res) => {
-  const hours = hoursParam(req.query.hours, 24, 168);
-  res.json(await recorder.priceHistory(hours));
-});
+app.get(
+  '/feed/history/price',
+  safeAsync(async (req, res) => {
+    const hours = hoursParam(req.query.hours, 24, 168);
+    res.json(await recorder.priceHistory(hours));
+  }),
+);
 
-app.get('/feed/history/oi', async (req, res) => {
-  const hours = hoursParam(req.query.hours, 24, 168);
-  res.json(await recorder.oiHistory(hours));
-});
+app.get(
+  '/feed/history/oi',
+  safeAsync(async (req, res) => {
+    const hours = hoursParam(req.query.hours, 24, 168);
+    res.json(await recorder.oiHistory(hours));
+  }),
+);
 
-app.get('/feed/history/volume', async (req, res) => {
-  const minutes = minutesParam(req.query.minutes, 60, 1440);
-  res.json(await recorder.volumeHistory(minutes));
-});
+app.get(
+  '/feed/history/volume',
+  safeAsync(async (req, res) => {
+    const minutes = minutesParam(req.query.minutes, 60, 1440);
+    res.json(await recorder.volumeHistory(minutes));
+  }),
+);
 
-app.get('/feed/history/stress', async (req, res) => {
-  const minutes = minutesParam(req.query.minutes, 180, 720);
-  res.json(await recorder.stressHistory(minutes));
-});
+app.get(
+  '/feed/history/stress',
+  safeAsync(async (req, res) => {
+    const minutes = minutesParam(req.query.minutes, 180, 720);
+    res.json(await recorder.stressHistory(minutes));
+  }),
+);
 
-app.get('/feed/history/whale-flow', async (req, res) => {
-  const minutes = minutesParam(req.query.minutes, 60, 1440);
-  res.json(await recorder.whaleFlowHistory(minutes));
-});
+app.get(
+  '/feed/history/whale-flow',
+  safeAsync(async (req, res) => {
+    const minutes = minutesParam(req.query.minutes, 60, 1440);
+    res.json(await recorder.whaleFlowHistory(minutes));
+  }),
+);
 
 export type { AppRouter } from './routes';
 export { app, server };
