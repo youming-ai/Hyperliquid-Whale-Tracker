@@ -95,7 +95,7 @@ export const appRouter = t.router({
       z.object({
         type: z.enum(['market', 'traders', 'copy']),
         symbols: z.array(z.string()).optional(),
-        filters: z.record(z.any()).optional(),
+        filters: z.record(z.string(), z.any()).optional(),
       }),
     )
     .mutation(
