@@ -64,6 +64,40 @@
 
 html {
   color-scheme: dark;
+  --panel-shadow: 0 0 0 1px hsl(var(--border));
+}
+
+/* ==========================================================================
+   Light theme — hyperdash light grays (gray-1/2 base, white panels)
+   ========================================================================== */
+
+html.light {
+  color-scheme: light;
+  --background: 33 9% 95%; /* ~#f2f1ef */
+  --foreground: 30 6% 11%; /* gray-13b */
+  --card: 0 0% 100%; /* white panels */
+  --card-foreground: 30 6% 11%;
+  --popover: 33 9% 96%;
+  --popover-foreground: 30 6% 11%;
+  --border: 33 8% 87%; /* ~#e2dfde */
+  --input: 33 8% 87%;
+  --primary: 13 89% 47%; /* same orange — works on white */
+  --primary-foreground: 0 0% 100%;
+  --secondary: 33 8% 91%;
+  --secondary-foreground: 30 6% 11%;
+  --muted: 33 9% 93%;
+  --muted-foreground: 33 5% 43%; /* gray-9 — secondary text on light */
+  --accent: 33 9% 93%;
+  --accent-foreground: 30 6% 11%;
+  /* darker up/down for contrast on white */
+  --success: 157 67% 37%; /* ~#1f9d6c */
+  --destructive: 349 58% 49%; /* ~#c73550 */
+  --warning: 27 91% 37%;
+  --fg-tertiary: 33 5% 45%;
+  --fg-quaternary: 35 5% 55%;
+  --fg-accent: 13 89% 47%;
+  --ring: 13 89% 47%;
+  --panel-shadow: 0 0 0 1px hsl(var(--border)), 0 1px 3px rgba(16, 14, 10, 0.06);
 }
 
 body {
@@ -141,7 +175,7 @@ body {
 .panel {
   background-color: hsl(var(--card));
   border-radius: var(--radius);
-  box-shadow: 0 0 0 1px hsl(var(--border));
+  box-shadow: var(--panel-shadow);
 }
 
 .panel-header {

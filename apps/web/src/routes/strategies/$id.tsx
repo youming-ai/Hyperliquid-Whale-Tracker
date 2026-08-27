@@ -78,7 +78,7 @@ function StrategyDetailPage() {
           ) : strategy.status === 'paused' ? (
             <button
               type="button"
-              className="px-4 py-2 rounded-lg bg-green-500 text-white text-sm font-medium hover:opacity-90 transition-opacity"
+              className="px-4 py-2 rounded-lg bg-[hsl(var(--success))] text-white text-sm font-medium hover:opacity-90 transition-opacity"
             >
               Resume
             </button>
@@ -201,7 +201,7 @@ function StrategyDetailPage() {
 
 function StatusBadge({ status }: { status: string }) {
   const styles = {
-    active: 'bg-green-500/20 text-green-500',
+    active: 'bg-[hsl(var(--success))]/20 text-green-500',
     paused: 'bg-yellow-500/20 text-yellow-500',
     error: 'bg-red-500/20 text-red-500',
     terminated: 'bg-gray-500/20 text-gray-500',

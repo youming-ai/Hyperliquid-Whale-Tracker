@@ -2,10 +2,10 @@
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { createRootRoute, HeadContent, Link, Outlet, Scripts } from '@tanstack/react-router';
 import { TanStackRouterDevtools } from '@tanstack/react-router-devtools';
-import { Activity, BarChart3, Copy, LayoutDashboard, Users } from 'lucide-react';
+import { Activity, BarChart3, Copy, LayoutDashboard, Moon, Sun, Users } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { AuthButton } from '~/components/AuthButton';
-import { Providers } from '~/providers';
+import { Providers, useTheme } from '~/providers';
 import appCss from '~/styles.css?url';
 
 export const Route = createRootRoute({
@@ -48,6 +48,25 @@ function NavLink({ to, label, Icon }: { to: string; label: string; Icon: typeof 
   );
 }
 
+function ThemeToggle() {
+  const { theme, toggleTheme } = useTheme();
+  return (
+    <button
+      type="button"
+      onClick={toggleTheme}
+      className="rail-item"
+      title={theme === 'light' ? 'Switch to dark' : 'Switch to light'}
+      aria-label="Toggle theme"
+    >
+      {theme === 'light' ? (
+        <Moon className="h-[16px] w-[16px]" strokeWidth={1.8} />
+      ) : (
+        <Sun className="h-[16px] w-[16px]" strokeWidth={1.8} />
+      )}
+    </button>
+  );
+}
+
 function RootComponent() {
   return (
     <div className="min-h-screen bg-[hsl(var(--background))] text-[hsl(var(--foreground))]">
@@ -85,7 +104,8 @@ function RootComponent() {
                 </Link>
               ))}
             </nav>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <ThemeToggle />
               <ConnectButton showBalance={false} accountStatus="address" chainStatus="icon" />
               <AuthButton />
             </div>
@@ -107,6 +127,12 @@ function RootDocument({ children }: { children: ReactNode }) {
     <html lang="en">
       <head>
         <HeadContent />
+        <script
+          // biome-ignore lint/security/noDangerouslySetInnerHtml: inline pre-paint theme script is the standard anti-FOUC technique
+          dangerouslySetInnerHTML={{
+            __html: `try{if(localStorage.getItem('hd-theme')==='light')document.documentElement.classList.add('light');}catch(e){}`,
+          }}
+        />
       </head>
       <body>
         <Providers>{children}</Providers>

@@ -26,7 +26,7 @@ export function AuthButton() {
       type="button"
       onClick={signIn}
       disabled={isSigningIn}
-      className="rounded-md bg-[#3b82f6] px-3 py-1.5 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+      className="rounded-md bg-[hsl(var(--primary))] px-3 py-1.5 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
     >
       {isSigningIn ? 'Signing in…' : 'Sign in'}
     </button>

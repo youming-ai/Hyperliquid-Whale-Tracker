@@ -9,7 +9,7 @@ interface CandlestickChartProps {
 
 const UP_COLOR = '#5cc09b';
 const DOWN_COLOR = '#d44b62';
-const GRID_COLOR = 'rgba(255, 255, 255, 0.06)';
+const GRID_COLOR = 'hsl(var(--border))';
 
 /**
  * Lightweight SVG candlestick chart. No charting dependency — candlesticks,
