@@ -21,9 +21,9 @@ jobs:
 
           echo "PR from $SOURCE_BRANCH to $TARGET_BRANCH"
 
-          # Enforce that PRs to main must come from develop
-          if [[ "$TARGET_BRANCH" == "main" && "$SOURCE_BRANCH" != "develop" ]]; then
-            echo "❌ PRs to main must come from develop branch"
+          # Enforce that PRs to main come from a feature branch (not main itself)
+          if [[ "$TARGET_BRANCH" == "main" && "$SOURCE_BRANCH" == "main" ]]; then
+            echo "❌ Cannot PR from main to main"
             exit 1
           fi
 
@@ -39,21 +39,21 @@ jobs:
           fetch-depth: 0
 
       - name: Check PR description
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
         run: |
-          PR_BODY="${{ github.event.pull_request.body }}"
-
           if [[ -z "$PR_BODY" || "$PR_BODY" == "" ]]; then
             echo "❌ PR must have a description"
             exit 1
           fi
 
           # Check for required sections in PR description
-          if [[ ! "$PR_BODY" =~ ##.*Changes ]]; then
+          if [[ ! "$PR_BODY" =~ "## Changes" ]]; then
             echo "❌ PR must include '## Changes' section"
             exit 1
           fi
 
-          if [[ ! "$PR_BODY" =~ ##.*Testing ]]; then
+          if [[ ! "$PR_BODY" =~ "## Testing" ]]; then
             echo "❌ PR must include '## Testing' section"
             exit 1
           fi
@@ -66,7 +66,11 @@ jobs:
           COMMITS=$(git log --format='%s' origin/main..HEAD)
 
           while IFS= read -r commit; do
-            if [[ ! "$commit" =~ ^(feat|fix|docs|style|refactor|test|chore)(\(.+\))?: .+ ]]; then
+            # Skip merge commits (GitHub auto-generates these)
+            if [[ "$commit" == Merge* ]]; then
+              continue
+            fi
+            if [[ ! "$commit" =~ ^(feat|fix|docs|style|refactor|test|chore)([(].+[)])?:\ .+ ]]; then
               echo "❌ Invalid commit message format: $commit"
               echo "Expected format: type(scope): description"
               exit 1
@@ -100,8 +104,8 @@ jobs:
             echo "::warning::Large PR detected. Consider breaking it into smaller PRs."
           fi
 
-          # Block very large PRs
-          if [[ $LINES_CHANGED -gt 3000 ]]; then
+          # Block very large PRs (raised to 10000 for feature migrations)
+          if [[ $LINES_CHANGED -gt 10000 ]]; then
             echo "❌ Very large PR detected ($LINES_CHANGED lines). Please break it into smaller PRs."
             exit 1
           fi

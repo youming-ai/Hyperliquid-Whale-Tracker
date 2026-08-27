@@ -1,6 +1,7 @@
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useState } from 'react';
-import { trpc } from '@/lib/api/trpc';
+import { api } from '~/lib/api-client';
 
 export const Route = createFileRoute('/strategies/new')({
   component: NewStrategyPage,
@@ -33,24 +34,72 @@ interface StrategyFormData {
   allocations: Allocation[];
 }
 
+interface TraderOption {
+  address: string;
+  traderId: string;
+  pnl7d: number;
+  winRate: number;
+}
+
 function NewStrategyPage() {
   const navigate = useNavigate();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showTraderSearch, setShowTraderSearch] = useState(false);
 
-  // @ts-expect-error - AppRouter is any type until proper type generation is set up
-  const { data: topTraders = [] } = trpc.traders.list.useQuery({
-    limit: 20,
-    sortBy: 'pnl',
-    sortOrder: 'desc',
-    timeframe: '7d',
-    isActive: true,
+  const { data: topTradersData } = useQuery({
+    queryKey: [
+      'traders',
+      { limit: '20', sortBy: 'pnl', sortOrder: 'desc', timeframe: '7d', isActive: 'true' },
+    ],
+    queryFn: async () => {
+      const res = await api.traders.$get({
+        query: {
+          limit: '20',
+          sortBy: 'pnl',
+          sortOrder: 'desc',
+          timeframe: '7d',
+          isActive: 'true',
+        },
+      });
+      if (!res.ok) throw new Error('failed to load traders');
+      const body = (await res.json()) as unknown as {
+        traders: Array<{
+          address: string;
+          traderId: string;
+          pnl7d?: string | number | null;
+          winrate?: string | number | null;
+        }>;
+      };
+      return body;
+    },
   });
 
-  // @ts-expect-error - AppRouter is any type until proper type generation is set up
-  const createStrategy = trpc.copy.createStrategy.useMutation({
+  const topTraders: TraderOption[] =
+    topTradersData?.traders.map((trader) => ({
+      address: trader.address,
+      traderId: trader.traderId,
+      pnl7d: Number(trader.pnl7d ?? 0),
+      winRate: Number(trader.winrate ?? 0),
+    })) ?? [];
+
+  const createStrategy = useMutation({
+    mutationFn: async (input: StrategyFormData) => {
+      const res = await api.strategies.$post({
+        json: {
+          name: input.name,
+          description: input.description || undefined,
+          mode: input.mode,
+          riskParams: input.riskParams,
+          settings: input.settings,
+          allocations: input.allocations,
+        },
+      });
+      if (!res.ok) throw new Error('failed to create strategy');
+      return res.json();
+    },
     onSuccess: () => navigate({ to: '/strategies' }),
   });
+
   const [formData, setFormData] = useState<StrategyFormData>({
     name: '',
     description: '',
@@ -87,14 +136,7 @@ function NewStrategyPage() {
       }
 
       console.log('Creating strategy:', formData);
-      await createStrategy.mutateAsync({
-        name: formData.name,
-        description: formData.description || undefined,
-        mode: formData.mode,
-        riskParams: formData.riskParams,
-        settings: formData.settings,
-        allocations: formData.allocations,
-      });
+      await createStrategy.mutateAsync(formData);
     } catch (error) {
       console.error('Error creating strategy:', error);
       alert('Failed to create strategy. Please try again.');
@@ -154,13 +196,18 @@ function NewStrategyPage() {
 
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Basic Info */}
-        <div className="bg-[hsl(var(--card))] border border-[hsl(var(--border))] rounded-xl p-6">
-          <h2 className="text-lg font-semibold mb-4">Basic Information</h2>
+        <div className="panel p-5">
+          <h2 className="text-[13px] font-semibold uppercase tracking-[0.06em] text-fg-tertiary mb-4">
+            Basic Information
+          </h2>
 
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium mb-2">Strategy Name</label>
+              <label htmlFor="strategy-name" className="block text-sm font-medium mb-2">
+                Strategy Name
+              </label>
               <input
+                id="strategy-name"
                 type="text"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
@@ -171,8 +218,11 @@ function NewStrategyPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-2">Description (Optional)</label>
+              <label htmlFor="strategy-description" className="block text-sm font-medium mb-2">
+                Description (Optional)
+              </label>
               <textarea
+                id="strategy-description"
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                 className="w-full px-4 py-2 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--primary))]"
@@ -182,8 +232,11 @@ function NewStrategyPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-2">Strategy Mode</label>
+              <label htmlFor="strategy-mode" className="block text-sm font-medium mb-2">
+                Strategy Mode
+              </label>
               <select
+                id="strategy-mode"
                 value={formData.mode}
                 onChange={(e) =>
                   setFormData({
@@ -206,9 +259,9 @@ function NewStrategyPage() {
         </div>
 
         {/* Trader Allocations */}
-        <div className="bg-[hsl(var(--card))] border border-[hsl(var(--border))] rounded-xl p-6">
+        <div className="panel p-5">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold">
+            <h2 className="text-[13px] font-semibold uppercase tracking-[0.06em] text-fg-tertiary">
               Trader Allocations{' '}
               <span className="text-sm font-normal opacity-60">
                 ({Math.round(totalAllocationWeight * 100)}% assigned)
@@ -227,7 +280,7 @@ function NewStrategyPage() {
             <div className="mb-4 p-4 rounded-lg bg-[hsl(var(--muted)/0.3)] border border-[hsl(var(--border))]">
               <h3 className="font-medium mb-3">Select Traders to Copy</h3>
               <div className="space-y-2">
-                {topTraders?.map((trader: any) => (
+                {topTraders.map((trader) => (
                   <div
                     key={trader.address}
                     className="flex items-center justify-between p-3 rounded-lg bg-[hsl(var(--card))] border border-[hsl(var(--border))]"
@@ -298,6 +351,7 @@ function NewStrategyPage() {
                       <span className="text-sm">%</span>
                     </div>
                   )}
+
                   <button
                     type="button"
                     onClick={() => removeAllocation(alloc.traderId)}
@@ -324,13 +378,18 @@ function NewStrategyPage() {
         </div>
 
         {/* Risk Parameters */}
-        <div className="bg-[hsl(var(--card))] border border-[hsl(var(--border))] rounded-xl p-6">
-          <h2 className="text-lg font-semibold mb-4">Risk Parameters</h2>
+        <div className="panel p-5">
+          <h2 className="text-[13px] font-semibold uppercase tracking-[0.06em] text-fg-tertiary mb-4">
+            Risk Parameters
+          </h2>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium mb-2">Max Leverage</label>
+              <label htmlFor="max-leverage" className="block text-sm font-medium mb-2">
+                Max Leverage
+              </label>
               <input
+                id="max-leverage"
                 type="number"
                 min="1"
                 max="10"
@@ -351,8 +410,11 @@ function NewStrategyPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-2">Max Position Size (USD)</label>
+              <label htmlFor="max-position-usd" className="block text-sm font-medium mb-2">
+                Max Position Size (USD)
+              </label>
               <input
+                id="max-position-usd"
                 type="number"
                 min="100"
                 step="100"
@@ -373,8 +435,11 @@ function NewStrategyPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-2">Slippage Tolerance (bps)</label>
+              <label htmlFor="slippage-bps" className="block text-sm font-medium mb-2">
+                Slippage Tolerance (bps)
+              </label>
               <input
+                id="slippage-bps"
                 type="number"
                 min="0"
                 max="100"
@@ -396,8 +461,11 @@ function NewStrategyPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-2">Min Order Size (USD)</label>
+              <label htmlFor="min-order-usd" className="block text-sm font-medium mb-2">
+                Min Order Size (USD)
+              </label>
               <input
+                id="min-order-usd"
                 type="number"
                 min="5"
                 step="5"
@@ -419,8 +487,10 @@ function NewStrategyPage() {
         </div>
 
         {/* Copy Settings */}
-        <div className="bg-[hsl(var(--card))] border border-[hsl(var(--border))] rounded-xl p-6">
-          <h2 className="text-lg font-semibold mb-4">Copy Settings</h2>
+        <div className="panel p-5">
+          <h2 className="text-[13px] font-semibold uppercase tracking-[0.06em] text-fg-tertiary mb-4">
+            Copy Settings
+          </h2>
 
           <div className="space-y-4">
             <div className="flex items-center justify-between">
@@ -476,8 +546,11 @@ function NewStrategyPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-2">Rebalance Threshold (bps)</label>
+              <label htmlFor="rebalance-threshold-bps" className="block text-sm font-medium mb-2">
+                Rebalance Threshold (bps)
+              </label>
               <input
+                id="rebalance-threshold-bps"
                 type="number"
                 min="0"
                 max="500"

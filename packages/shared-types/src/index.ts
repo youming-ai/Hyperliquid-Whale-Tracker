@@ -84,6 +84,42 @@ export const CopyStrategySchema = z.object({
   alignmentRate: z.number(),
 });
 
+// Strategy allocation — single source for web + api-gateway validation
+// ponytail: keep validation here so weights sum to 1 in one place, upgrade to per-strategy caps if needed
+export const AllocationSchema = z.object({
+  traderId: z.string().min(1),
+  weight: z.number().min(0).max(1),
+});
+export type Allocation = z.infer<typeof AllocationSchema>;
+
+export function validateAllocationWeights(
+  mode: 'portfolio' | 'single_trader',
+  allocations: Array<{ weight: number }>,
+): void {
+  if (allocations.length === 0) throw new Error('Strategy must have at least one allocation');
+  for (const a of allocations) {
+    if (!(a.weight > 0 && a.weight <= 1))
+      throw new Error(`Allocation weight must be in (0, 1]; got ${a.weight}`);
+  }
+  if (mode === 'single_trader') {
+    if (allocations.length !== 1)
+      throw new Error(`single_trader requires exactly one allocation; got ${allocations.length}`);
+    if (Math.abs(allocations[0].weight - 1) > 0.0001)
+      throw new Error(`single_trader weight must be 1; got ${allocations[0].weight}`);
+    return;
+  }
+  const sum = allocations.reduce((acc, a) => acc + a.weight, 0);
+  if (Math.abs(sum - 1) > 0.0001)
+    throw new Error(`Portfolio weights must sum to 1; got ${sum.toFixed(4)}`);
+}
+
+/** Coerce DB numeric (string | number | null) to number, single source for pnl/equity parsing. */
+export function toNumber(value: string | number | null | undefined): number {
+  if (value == null) return 0;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
 // Export types
 export type MarketOverview = z.infer<typeof MarketOverviewSchema>;
 export type OHLCV = z.infer<typeof OHLCVSchema>;
@@ -97,21 +133,21 @@ export const SystemHealth = z.object({
   timestamp: z.string(),
   version: z.string(),
   uptime: z.number(),
-  components: z.record(z.any()),
-  metrics: z.record(z.any()),
+  components: z.record(z.string(), z.any()),
+  metrics: z.record(z.string(), z.any()),
 });
 
 export const SystemMetrics = z.object({
   timeframe: z.string(),
   granularity: z.string(),
   generatedAt: z.string(),
-  system: z.record(z.any()),
-  application: z.record(z.any()),
+  system: z.record(z.string(), z.any()),
+  application: z.record(z.string(), z.any()),
 });
 
 export const SystemStatus = z.object({
   timestamp: z.string(),
-  services: z.record(z.any()),
+  services: z.record(z.string(), z.any()),
   alerts: z.array(z.any()),
   recentEvents: z.array(z.any()),
 });
@@ -122,9 +158,9 @@ export const UserProfile = z.object({
   walletAddr: z.string().optional(),
   kycLevel: z.number().optional(),
   status: z.string().optional(),
-  preferences: z.record(z.any()).optional(),
-  subscription: z.record(z.any()).optional(),
-  stats: z.record(z.any()).optional(),
+  preferences: z.record(z.string(), z.any()).optional(),
+  subscription: z.record(z.string(), z.any()).optional(),
+  stats: z.record(z.string(), z.any()).optional(),
   createdAt: z.string().optional(),
   updatedAt: z.string().optional(),
 });
@@ -137,10 +173,10 @@ export const AgentWallet = z.object({
   status: z.string().optional(),
   minOrderUsd: z.number().optional(),
   maxLeverage: z.number().optional(),
-  permissions: z.record(z.any()).optional(),
-  metadata: z.record(z.any()).optional(),
+  permissions: z.record(z.string(), z.any()).optional(),
+  metadata: z.record(z.string(), z.any()).optional(),
   positions: z.array(z.any()).optional(),
-  balance: z.record(z.any()).optional(),
+  balance: z.record(z.string(), z.any()).optional(),
   createdAt: z.string().optional(),
   updatedAt: z.string().optional(),
 });
@@ -166,7 +202,7 @@ export const Notification = z.object({
   type: z.string().optional(),
   title: z.string().optional(),
   message: z.string().optional(),
-  data: z.record(z.any()).optional(),
+  data: z.record(z.string(), z.any()).optional(),
   read: z.boolean().optional(),
   createdAt: z.string().optional(),
 });
@@ -189,14 +225,45 @@ export const UserStatistics = z.object({
   timeframe: z.string().optional(),
   periodStart: z.string().optional(),
   periodEnd: z.string().optional(),
-  overview: z.record(z.any()).optional(),
-  copyTrading: z.record(z.any()).optional(),
-  performance: z.record(z.any()).optional(),
-  risk: z.record(z.any()).optional(),
-  engagement: z.record(z.any()).optional(),
+  overview: z.record(z.string(), z.any()).optional(),
+  copyTrading: z.record(z.string(), z.any()).optional(),
+  performance: z.record(z.string(), z.any()).optional(),
+  risk: z.record(z.string(), z.any()).optional(),
+  engagement: z.record(z.string(), z.any()).optional(),
 });
 
 // Schemas namespace for convenient access
+export {
+  default as feed,
+  FeedBook,
+  FeedCandle,
+  FeedCtx,
+  FeedLevel,
+  FeedState,
+  FeedTrade,
+  FundingPoint,
+  OiPoint,
+  PricePoint,
+  StressPoint,
+  VolumePoint,
+  WhaleFlowPoint,
+} from './feed';
+
+import {
+  FeedBookSchema,
+  FeedCandleSchema,
+  FeedCtxSchema,
+  FeedLevelSchema,
+  FeedStateSchema,
+  FeedTradeSchema,
+  FundingPointSchema,
+  OiPointSchema,
+  PricePointSchema,
+  StressPointSchema,
+  VolumePointSchema,
+  WhaleFlowPointSchema,
+} from './feed';
+
 export const schemas = {
   SystemHealth,
   SystemMetrics,
@@ -212,4 +279,16 @@ export const schemas = {
   HeatmapBin: HeatmapBinSchema,
   Trader: TraderSchema,
   CopyStrategy: CopyStrategySchema,
+  FeedLevel: FeedLevelSchema,
+  FeedBook: FeedBookSchema,
+  FeedTrade: FeedTradeSchema,
+  FeedCandle: FeedCandleSchema,
+  FeedCtx: FeedCtxSchema,
+  FeedState: FeedStateSchema,
+  FundingPoint: FundingPointSchema,
+  PricePoint: PricePointSchema,
+  OiPoint: OiPointSchema,
+  VolumePoint: VolumePointSchema,
+  StressPoint: StressPointSchema,
+  WhaleFlowPoint: WhaleFlowPointSchema,
 };
