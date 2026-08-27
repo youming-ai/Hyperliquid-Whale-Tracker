@@ -42,17 +42,14 @@ function AnalyticsPage() {
         </p>
       </div>
 
-      <div className="flex gap-2 mb-5 overflow-x-auto pb-1">
+      <div className="dock mb-5 w-fit">
         {TABS.map((t) => (
           <button
             key={t.id}
             type="button"
             onClick={() => setTab(t.id)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm whitespace-nowrap transition-colors ${
-              tab === t.id
-                ? 'bg-[hsl(var(--primary))] text-primary-foreground'
-                : 'bg-[hsl(var(--muted))]/40 hover:bg-[hsl(var(--muted))]'
-            }`}
+            className="dock-tab flex items-center gap-1.5"
+            data-active={tab === t.id}
           >
             {t.icon}
             {t.label}

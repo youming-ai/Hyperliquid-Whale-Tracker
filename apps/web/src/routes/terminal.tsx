@@ -114,14 +114,8 @@ function TerminalPage() {
           </p>
         </div>
         <div className="flex items-center gap-3 text-xs">
-          <span
-            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full ${
-              feed.connected
-                ? 'bg-[hsl(var(--success))]/15 text-success'
-                : 'bg-[hsl(var(--warning))]/15 text-warning'
-            }`}
-          >
-            <Radio className="w-3.5 h-3.5" />
+          <span className={`badge ${feed.connected ? 'badge-up' : 'badge-neutral'}`}>
+            <Radio className="h-3 w-3" />
             {feed.connected ? 'Feed live' : 'Feed reconnecting…'}
           </span>
           <Link
@@ -134,17 +128,14 @@ function TerminalPage() {
       </div>
 
       {/* Coin selector */}
-      <div className="flex gap-2 mb-4 overflow-x-auto pb-1">
+      <div className="dock mb-4 w-fit">
         {topCoins.map((c) => (
           <button
             key={c.symbol}
             type="button"
             onClick={() => setSelected(c.symbol)}
-            className={`px-3 py-1.5 rounded-lg text-sm font-mono whitespace-nowrap transition-colors ${
-              c.symbol === coin
-                ? 'bg-[hsl(var(--primary))] text-primary-foreground'
-                : 'bg-[hsl(var(--muted))]/40 hover:bg-[hsl(var(--muted))]'
-            }`}
+            className="dock-tab dock-tab-accent num"
+            data-active={c.symbol === coin}
           >
             {c.symbol}
           </button>

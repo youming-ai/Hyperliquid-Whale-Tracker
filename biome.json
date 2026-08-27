@@ -13,6 +13,7 @@
     "includes": [
       "**",
       "!**/node_modules",
+      "!**/.wrangler",
       "!**/dist",
       "!**/.next",
       "!**/coverage",
