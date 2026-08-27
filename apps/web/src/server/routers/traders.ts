@@ -44,7 +44,7 @@ export const tradersRouter = new Hono<AppEnv>()
       pnl: pnlColumn,
       winrate: traderStats.winrate,
       trades: traderStats.totalTrades,
-      equity: traderStats.totalTrades,
+      equity: traderStats.equityUsd,
       sharpe: traderStats.sharpeRatio,
     }[sortBy];
 

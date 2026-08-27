@@ -118,35 +118,30 @@ function OiPanel() {
         Top {rows.length} markets by open interest
       </div>
       <div className="overflow-x-auto">
-        <table className="w-full text-sm font-mono">
+        <table className="data-table">
           <thead>
-            <tr className="text-xs opacity-60 border-b border-border">
-              <th className="text-left px-4 py-2">Coin</th>
-              <th className="text-right px-4 py-2">Mark</th>
-              <th className="text-right px-4 py-2">Funding</th>
-              <th className="text-right px-4 py-2">Open Interest</th>
-              <th className="text-right px-4 py-2">OI 24h</th>
-              <th className="text-right px-4 py-2">24h Volume</th>
+            <tr>
+              <th>Coin</th>
+              <th className="num-col">Mark</th>
+              <th className="num-col">Funding</th>
+              <th className="num-col">Open Interest</th>
+              <th className="num-col">OI 24h</th>
+              <th className="num-col">24h Volume</th>
             </tr>
           </thead>
           <tbody>
             {rows.slice(0, 60).map((m) => (
-              <tr
-                key={m.symbol}
-                className="border-b border-[hsl(var(--border))]/40 hover:bg-[hsl(var(--muted))]/20"
-              >
-                <td className="px-4 py-1.5">{m.symbol}</td>
-                <td className="px-4 py-1.5 text-right text-success">{formatNumber(m.markPrice)}</td>
+              <tr key={m.symbol}>
+                <td className="num">{m.symbol}</td>
+                <td className="num-col text-success">{formatNumber(m.markPrice)}</td>
                 <td
-                  className={`px-4 py-1.5 text-right ${
-                    m.fundingRate > 0 ? 'text-success' : 'text-destructive'
-                  }`}
+                  className={`num-col ${m.fundingRate > 0 ? 'text-success' : 'text-destructive'}`}
                 >
                   {(m.fundingRate * 100).toFixed(4)}%
                 </td>
-                <td className="px-4 py-1.5 text-right">{formatUsd(m.openInterest)}</td>
+                <td className="num-col">{formatUsd(m.openInterest)}</td>
                 <td
-                  className={`px-4 py-1.5 text-right ${
+                  className={`num-col ${
                     m.oiChangePct === null
                       ? 'opacity-40'
                       : m.oiChangePct >= 0
@@ -158,7 +153,7 @@ function OiPanel() {
                     ? '-'
                     : `${m.oiChangePct >= 0 ? '+' : ''}${m.oiChangePct.toFixed(1)}%`}
                 </td>
-                <td className="px-4 py-1.5 text-right opacity-80">{formatUsd(m.volume24h)}</td>
+                <td className="num-col opacity-80">{formatUsd(m.volume24h)}</td>
               </tr>
             ))}
           </tbody>
@@ -197,7 +192,7 @@ function HeatmapGrid({
 }: HeatmapProps) {
   if (series.length === 0) {
     return (
-      <div className="rounded-xl border border-border bg-card p-10 text-center opacity-60">
+      <div className="panel p-10 text-center text-sm text-fg-tertiary">
         {emptyLabel ??
           `No ${title.toLowerCase()} history yet — the feed recorder needs to run for a while.`}
       </div>
@@ -223,10 +218,10 @@ function HeatmapGrid({
                       cell.hint ??
                       `${row.coin} ${new Date(cell.ts).toISOString().slice(0, 13)}:00 · ${cell.value === null ? 'n/a' : cell.value}`
                     }
-                    className="w-8 h-8 rounded-sm border border-black/10"
+                    className="w-8 h-8 rounded-sm border border-[hsl(var(--border))]"
                     style={{
                       background:
-                        cell.value === null ? 'rgba(148,163,184,0.08)' : color(cell.value),
+                        cell.value === null ? 'hsl(var(--muted) / 0.5)' : color(cell.value),
                     }}
                   />
                 ))}
@@ -514,12 +509,12 @@ function WhaleFlows() {
                 <div className="flex-1 h-5 relative bg-[hsl(var(--muted))]/40 rounded overflow-hidden">
                   {r.net >= 0 ? (
                     <div
-                      className="absolute inset-y-0 left-1/2 bg-green-500/70"
+                      className="absolute inset-y-0 left-1/2 bg-[hsl(var(--success))]/70"
                       style={{ width: `${(r.net / maxAbs) * 50}%` }}
                     />
                   ) : (
                     <div
-                      className="absolute inset-y-0 right-1/2 bg-red-500/70"
+                      className="absolute inset-y-0 right-1/2 bg-[hsl(var(--destructive))]/70"
                       style={{ width: `${(Math.abs(r.net) / maxAbs) * 50}%` }}
                     />
                   )}
