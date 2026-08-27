@@ -3,7 +3,7 @@ import postgres from 'postgres';
 import * as schema from './schema';
 
 const connectionString =
-  process.env.DATABASE_URL || 'postgresql://hyperdash:hyperdash_password@localhost:5432/hyperdash';
+  process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/hyperdash';
 
 async function runMigrations() {
   console.log('Starting PostgreSQL migrations...');

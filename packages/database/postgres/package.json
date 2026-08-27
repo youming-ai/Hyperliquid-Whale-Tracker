@@ -13,7 +13,8 @@
     "migrate:push": "bun push-migration.ts",
     "seed": "bun seed.ts",
     "studio": "drizzle-kit studio",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "db:push": "drizzle-kit push --force"
   },
   "dependencies": {
     "@hyperdash/shared-types": "workspace:*",
