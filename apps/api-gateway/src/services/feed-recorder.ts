@@ -447,6 +447,12 @@ export class FeedRecorder {
     });
   }
 
+  /** Dynamically track additional whales (e.g. from live discovery). */
+  addWhales(addresses: string[]): number {
+    for (const address of addresses) this.whales.add(address.toLowerCase());
+    return this.whales.size;
+  }
+
   getWhaleAddresses(): string[] {
     return [...this.whales];
   }

@@ -29,6 +29,18 @@ coins by default) and fans data out to browsers over `ws://<host>/ws`:
 - Configure via `HL_FEED_COINS`, `HL_WHALE_ADDRESSES`; web uses
   `VITE_WS_URL` (default `ws://localhost:3000/ws`)
 
+### Whale auto-discovery
+
+No manual seed list required: the gateway watches every trade and ranks
+addresses by live taker/maker volume (`whale-discovery.ts`). Periodically it
+ingests the top whales' full profiles (stats/trades/positions) into Postgres,
+so the leaderboard and whale-position panels populate automatically:
+
+- `HL_AUTO_INGEST` = `1` (default) — enables the periodic ingest cycle
+- `HL_INGEST_INTERVAL_MS` — ingest period in ms (default 600000 / 10 min)
+- `HL_COPY_ENGINE_AUTOSTART` = `1` — opt-in; starts the copy-trading engine
+  with the gateway (places real orders — leave off in dev)
+
 ## Architecture
 
 ```
